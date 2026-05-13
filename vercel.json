@@ -1,0 +1,9 @@
+{
+  "buildCommand": "npm run build",
+  "outputDirectory": "dist/static",
+  "functions": {
+    "api/generate.js": { "maxDuration": 60 },
+    "api/generate-image.js": { "maxDuration": 60 }
+  },
+  "rewrites": [{ "source": "/(.*)", "destination": "/index.html" }]
+}
