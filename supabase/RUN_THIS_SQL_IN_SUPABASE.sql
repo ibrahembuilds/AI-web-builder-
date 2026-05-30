@@ -2,7 +2,7 @@
 -- Paste this whole file into Supabase SQL Editor and run it once.
 -- Do not paste your OpenAI API key here.
 -- Store the API key as an Edge Function secret instead:
--- npx supabase secrets set OPENAI_API_KEY="YOUR_KEY" --project-ref kuyjkbbbmsbtvsrjkrbi
+-- npx supabase secrets set OPENAI_API_KEY="YOUR_KEY" --project-ref your-project-ref
 
 create table if not exists public.profiles (
   id uuid primary key references auth.users(id) on delete cascade,

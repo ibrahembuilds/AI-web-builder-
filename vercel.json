@@ -3,7 +3,8 @@
   "outputDirectory": "dist/static",
   "functions": {
     "api/generate.js": { "maxDuration": 60 },
-    "api/generate-image.js": { "maxDuration": 60 }
+    "api/generate-image.js": { "maxDuration": 60 },
+    "api/auth-signup.js": { "maxDuration": 15 }
   },
   "rewrites": [{ "source": "/(.*)", "destination": "/index.html" }]
 }

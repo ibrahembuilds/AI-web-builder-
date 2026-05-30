@@ -1,7 +1,7 @@
 import { createFileRoute, useNavigate } from "@tanstack/react-router";
 import { lazy, Suspense, useEffect } from "react";
-import { Loader2 } from "lucide-react";
 
+import { PageLoadingState } from "@/components/loading-state";
 import { useAuth } from "@/hooks/use-auth";
 
 const AIPage = lazy(() => import("./-ai-page"));
@@ -35,7 +35,7 @@ function AIRoute() {
 
   if (loading) {
     return (
-      <AILoading
+      <PageLoadingState
         title="Checking your session"
         body="Loading your account before opening the AI builder."
       />
@@ -44,7 +44,7 @@ function AIRoute() {
 
   if (!isSupabaseConfigured) {
     return (
-      <AILoading
+      <PageLoadingState
         title="Authentication is not configured"
         body="Add the Supabase environment variables before using the AI builder."
         spinning={false}
@@ -54,41 +54,20 @@ function AIRoute() {
 
   if (!user) {
     return (
-      <AILoading title="Redirecting to sign in" body="Sign in is required to use the AI builder." />
+      <PageLoadingState
+        title="Redirecting to sign in"
+        body="Sign in is required to use the AI builder."
+      />
     );
   }
 
   return (
     <Suspense
-      fallback={<AILoading title="Loading AI builder" body="Preparing the workspace and tools." />}
+      fallback={
+        <PageLoadingState title="Loading AI builder" body="Preparing the workspace and tools." />
+      }
     >
       <AIPage />
     </Suspense>
-  );
-}
-
-function AILoading({
-  title,
-  body,
-  spinning = true,
-}: {
-  title: string;
-  body: string;
-  spinning?: boolean;
-}) {
-  return (
-    <main className="flex min-h-screen items-center justify-center bg-background px-4">
-      <div className="text-center">
-        <div className="mx-auto flex h-11 w-11 items-center justify-center rounded-lg border border-border bg-card shadow-sm">
-          {spinning ? (
-            <Loader2 className="h-5 w-5 animate-spin text-primary" />
-          ) : (
-            <span className="h-2.5 w-2.5 rounded-full bg-destructive" aria-hidden="true" />
-          )}
-        </div>
-        <p className="mt-4 font-display text-lg font-semibold">{title}</p>
-        <p className="mt-1 text-sm text-muted-foreground">{body}</p>
-      </div>
-    </main>
   );
 }

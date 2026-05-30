@@ -1,4 +1,4 @@
-project_id = "kuyjkbbbmsbtvsrjkrbi"
+project_id = "your-project-ref"
 
 [functions.ai-generate-site]
 verify_jwt = true

@@ -8,39 +8,32 @@ import {
   ExternalLink,
   FolderOpen,
   Image as ImageIcon,
-  ImagePlus,
+  LayoutDashboard,
   Loader2,
   LogOut,
+  Pencil,
+  RefreshCw,
   Search,
+  Settings,
   Sparkles,
-  Star,
   Trash2,
   Upload,
   Wand2,
-  Zap,
 } from "lucide-react";
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState, type ElementType } from "react";
 import { toast } from "sonner";
 
-import { SiteHeader } from "@/components/site-header";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@/components/ui/select";
 import { useAuth } from "@/hooks/use-auth";
 import { isSupabaseConfigured, supabase } from "@/integrations/supabase/client";
-import type { Json } from "@/integrations/supabase/types";
-
-// ─── Types ────────────────────────────────────────────────────────────────────
 
 type DashTab = "overview" | "projects" | "images" | "settings";
 type SortKey = "updated_desc" | "updated_asc" | "name_asc" | "name_desc";
+type DashboardSearch = { tab?: DashTab };
+type ImageSize = "1024x1024" | "1536x1024" | "1024x1536";
+type ImageQuality = "low" | "medium" | "high";
 
 type AiProject = {
   id: string;
@@ -49,7 +42,6 @@ type AiProject = {
   model: string | null;
   updated_at: string;
   created_at: string;
-  files: { html?: string; css?: string; js?: string } | null;
   style: { id?: string; label?: string } | null;
 };
 
@@ -62,51 +54,91 @@ type StoredImage = {
 };
 
 type AppSettings = { preferredModel: string; displayName: string };
-
-// ─── Constants ────────────────────────────────────────────────────────────────
+type ProjectAction =
+  | { type: "delete"; id: string }
+  | { type: "download"; id: string }
+  | { type: "preview"; id: string };
 
 const SETTINGS_KEY = "kanyoai.settings.v1";
 const STORAGE_BUCKET = "user-images";
+const MAX_IMAGES = 80;
+const MAX_RENDERED_IMAGES = 48;
+const MAX_RENDERED_PROJECTS = 120;
+
+const NAV_ITEMS: Array<{ id: DashTab; label: string; Icon: ElementType }> = [
+  { id: "overview", label: "Overview", Icon: LayoutDashboard },
+  { id: "projects", label: "Projects", Icon: FolderOpen },
+  { id: "images", label: "Images", Icon: ImageIcon },
+  { id: "settings", label: "Settings", Icon: Settings },
+];
 
 const SETTINGS_MODELS = [
-  { id: "flagship", label: "GPT-5.5",      badge: "Flagship",   note: "Complex reasoning · best output" },
-  { id: "quality",  label: "GPT-5.4",      badge: "Pro",        note: "Professional work · great quality" },
-  { id: "budget",   label: "GPT-5.4 Mini", badge: "Default",    note: "Balanced speed & quality" },
-  { id: "fast",     label: "GPT-5.4 Nano", badge: "Fast",       note: "Lowest latency · most affordable" },
+  { id: "flagship", label: "GPT-5.5", badge: "Flagship", note: "Best for complex sites" },
+  { id: "budget", label: "GPT-5.4 Mini", badge: "Default", note: "Balanced speed and quality" },
+  { id: "grok", label: "Grok 4.3", badge: "xAI", note: "Fast reasoning model" },
+  {
+    id: "deepseek-pro",
+    label: "DeepSeek v4 Pro",
+    badge: "DeepSeek",
+    note: "High quality generation",
+  },
+  {
+    id: "deepseek-flash",
+    label: "DeepSeek v4 Flash",
+    badge: "Fast",
+    note: "Fastest DeepSeek option",
+  },
 ];
 
-const TABS: Array<{ id: DashTab; label: string }> = [
-  { id: "overview",  label: "Overview"  },
-  { id: "projects",  label: "Projects"  },
-  { id: "images",    label: "Images"    },
-  { id: "settings",  label: "Settings"  },
-];
+function isDashTab(value: unknown): value is DashTab {
+  return value === "overview" || value === "projects" || value === "images" || value === "settings";
+}
+
+function dashboardTabSearch(tab: DashTab): DashboardSearch {
+  return tab === "overview" ? {} : { tab };
+}
 
 function loadSettings(): AppSettings {
   try {
     const raw = localStorage.getItem(SETTINGS_KEY);
     if (raw) return { preferredModel: "budget", displayName: "", ...JSON.parse(raw) };
-  } catch {}
+  } catch {
+    // Ignore malformed local settings.
+  }
   return { preferredModel: "budget", displayName: "" };
 }
 
-// Returns true when Supabase has stored a session token in localStorage,
-// even if the JS auth hook hasn't resolved yet (prevents premature redirect).
-function hasStoredSession(): boolean {
-  try {
-    return Object.keys(localStorage).some(
-      (k) => k.startsWith("sb-") && k.endsWith("-auth-token"),
-    );
-  } catch { return false; }
+function saveSettings(settings: AppSettings) {
+  localStorage.setItem(SETTINGS_KEY, JSON.stringify(settings));
 }
 
-function saveSettings(s: AppSettings) {
-  localStorage.setItem(SETTINGS_KEY, JSON.stringify(s));
+function safeSlug(value: string) {
+  return (
+    value
+      .toLowerCase()
+      .replace(/[^a-z0-9]+/g, "-")
+      .replace(/^-+|-+$/g, "") || "kanyoai-site"
+  );
 }
 
-// ─── Route ────────────────────────────────────────────────────────────────────
+function kindBadge(kind: string) {
+  const colors: Record<string, string> = {
+    portfolio: "bg-sky-50 text-sky-700 ring-sky-200",
+    landing: "bg-violet-50 text-violet-700 ring-violet-200",
+    business: "bg-emerald-50 text-emerald-700 ring-emerald-200",
+    saas: "bg-blue-50 text-blue-700 ring-blue-200",
+    commerce: "bg-amber-50 text-amber-700 ring-amber-200",
+    funnel: "bg-fuchsia-50 text-fuchsia-700 ring-fuchsia-200",
+    workshop: "bg-indigo-50 text-indigo-700 ring-indigo-200",
+    events: "bg-rose-50 text-rose-700 ring-rose-200",
+  };
+  return colors[kind] ?? "bg-slate-100 text-slate-700 ring-slate-200";
+}
 
 export const Route = createFileRoute("/dashboard")({
+  validateSearch: (search: Record<string, unknown>): DashboardSearch => ({
+    tab: isDashTab(search.tab) ? search.tab : undefined,
+  }),
   head: () => ({
     meta: [
       { title: "Dashboard - kanyoai" },
@@ -116,164 +148,313 @@ export const Route = createFileRoute("/dashboard")({
   component: DashboardPage,
 });
 
-// ─── Main component ───────────────────────────────────────────────────────────
-
 function DashboardPage() {
   const { user, loading: authLoading, signOut } = useAuth();
   const navigate = useNavigate();
-  const [tab, setTab] = useState<DashTab>("overview");
+  const search = Route.useSearch();
+  const activeTab = search.tab ?? "overview";
 
-  // Data
-  const [projects, setProjects]     = useState<AiProject[] | null>(null);
-  const [images,   setImages]       = useState<StoredImage[] | null>(null);
-  const [settings, setSettings]     = useState<AppSettings>(loadSettings);
+  const [projects, setProjects] = useState<AiProject[]>([]);
+  const [projectsLoading, setProjectsLoading] = useState(true);
+  const [projectsError, setProjectsError] = useState<string | null>(null);
 
-  // Projects UI
+  const [images, setImages] = useState<StoredImage[]>([]);
+  const [imagesLoaded, setImagesLoaded] = useState(false);
+  const [imagesLoading, setImagesLoading] = useState(false);
+  const [imagesError, setImagesError] = useState<string | null>(null);
+
+  const [settings, setSettings] = useState<AppSettings>(loadSettings);
+  const [profile, setProfile] = useState<{
+    full_name: string | null;
+    avatar_url: string | null;
+  } | null>(null);
   const [query, setQuery] = useState("");
-  const [sort,  setSort]  = useState<SortKey>("updated_desc");
+  const [sort, setSort] = useState<SortKey>("updated_desc");
+  const [projectAction, setProjectAction] = useState<ProjectAction | null>(null);
 
-  // Images UI
-  const [imagePrompt,      setImagePrompt]      = useState("");
-  const [imageSize,        setImageSize]        = useState<"1024x1024" | "1536x1024" | "1024x1536">("1024x1024");
-  const [genQuality,       setGenQuality]       = useState<"standard" | "hd">("standard");
-  const [generatingImage,  setGeneratingImage]  = useState(false);
-  const [uploadingImage,   setUploadingImage]   = useState(false);
+  const [imagePrompt, setImagePrompt] = useState("");
+  const [imageSize, setImageSize] = useState<ImageSize>("1024x1024");
+  const [imageQuality, setImageQuality] = useState<ImageQuality>("medium");
+  const [generatingImage, setGeneratingImage] = useState(false);
+  const [uploadingImage, setUploadingImage] = useState(false);
   const [deletingImagePath, setDeletingImagePath] = useState<string | null>(null);
-  const [copied,           setCopied]           = useState<string | null>(null);
+  const [copiedUrl, setCopiedUrl] = useState<string | null>(null);
 
   const uploadRef = useRef<HTMLInputElement | null>(null);
 
-  // Redirect only when auth is fully settled AND there is no stored session —
-  // prevents a premature redirect if Supabase responds after the safety timeout.
-  useEffect(() => {
-    if (!authLoading && !user?.id && !hasStoredSession()) {
-      navigate({ to: "/login", search: { redirect: "/dashboard" } });
+  const loadProjects = useCallback(async () => {
+    if (!user?.id || !isSupabaseConfigured) {
+      setProjects([]);
+      setProjectsLoading(false);
+      return;
     }
-  }, [user?.id, authLoading, navigate]);
 
-  // Load projects once user is available
-  // user?.id (string) — avoids re-running on TOKEN_REFRESHED where object ref changes but ID doesn't
+    setProjectsLoading(true);
+    setProjectsError(null);
+    try {
+      const { data, error } = await supabase
+        .from("ai_projects")
+        .select("id,title,kind,model,updated_at,created_at,style")
+        .order("updated_at", { ascending: false });
+
+      if (error) throw error;
+      setProjects((data as AiProject[]) ?? []);
+    } catch (err) {
+      setProjects([]);
+      setProjectsError(err instanceof Error ? err.message : "Could not load projects.");
+    } finally {
+      setProjectsLoading(false);
+    }
+  }, [user?.id]);
+
+  const loadImages = useCallback(
+    async (force = false) => {
+      if (!user?.id || !isSupabaseConfigured) {
+        setImages([]);
+        setImagesLoaded(true);
+        return;
+      }
+      if (imagesLoading && !force) return;
+
+      setImagesLoading(true);
+      setImagesError(null);
+      try {
+        const { data, error } = await supabase.storage
+          .from(STORAGE_BUCKET)
+          .list(user.id, { limit: MAX_IMAGES, sortBy: { column: "created_at", order: "desc" } });
+
+        if (error) throw error;
+        const items = (data ?? [])
+          .filter((file) => file.name !== ".emptyFolderPlaceholder")
+          .map((file) => {
+            const path = `${user.id}/${file.name}`;
+            return {
+              name: file.name,
+              path,
+              url: supabase.storage.from(STORAGE_BUCKET).getPublicUrl(path).data.publicUrl,
+              size: (file.metadata as { size?: number } | null)?.size ?? 0,
+              created_at: file.created_at || new Date().toISOString(),
+            };
+          });
+        setImages(items);
+        setImagesLoaded(true);
+      } catch (err) {
+        setImages([]);
+        setImagesLoaded(true);
+        setImagesError(err instanceof Error ? err.message : "Could not load image library.");
+      } finally {
+        setImagesLoading(false);
+      }
+    },
+    [imagesLoading, user?.id],
+  );
+
+  useEffect(() => {
+    if (!authLoading && !user?.id) {
+      void navigate({ to: "/login", search: { redirect: "/dashboard" }, replace: true });
+    }
+  }, [authLoading, navigate, user?.id]);
+
+  useEffect(() => {
+    void loadProjects();
+  }, [loadProjects]);
+
+  useEffect(() => {
+    if ((activeTab === "overview" || activeTab === "images") && !imagesLoaded && !imagesLoading) {
+      void loadImages();
+    }
+  }, [activeTab, imagesLoaded, imagesLoading, loadImages]);
+
   useEffect(() => {
     if (!user?.id || !isSupabaseConfigured) return;
     let cancelled = false;
     supabase
-      .from("ai_projects")
-      .select("id,title,kind,model,updated_at,created_at,files,style")
-      .order("updated_at", { ascending: false })
-      .then(({ data, error }) => {
-        if (cancelled) return;
-        if (error) { toast.error("Could not load projects", { description: error.message }); setProjects([]); return; }
-        setProjects((data as AiProject[]) ?? []);
+      .from("profiles")
+      .select("full_name, avatar_url")
+      .eq("id", user.id)
+      .single()
+      .then(({ data }) => {
+        if (cancelled || !data) return;
+        const nextProfile = data as { full_name: string | null; avatar_url: string | null };
+        setProfile(nextProfile);
+        if (nextProfile.full_name) {
+          setSettings((current) => {
+            if (current.displayName) return current;
+            const next = { ...current, displayName: nextProfile.full_name ?? "" };
+            saveSettings(next);
+            return next;
+          });
+        }
       });
-    return () => { cancelled = true; };
+
+    return () => {
+      cancelled = true;
+    };
   }, [user?.id]);
 
-  // Load images when images tab first opens — images excluded from deps to avoid double-loads
-  useEffect(() => {
-    if (tab !== "images" || !user?.id || !isSupabaseConfigured || images !== null) return;
-    void loadImages();
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [tab, user?.id]);
+  function goToTab(tab: DashTab) {
+    void navigate({ to: "/dashboard", search: dashboardTabSearch(tab), replace: true });
+  }
 
-  async function loadImages() {
-    if (!user) return;
+  function handleEditProject(project: AiProject) {
+    sessionStorage.setItem(
+      "kanyoai.resume_project",
+      JSON.stringify({
+        id: project.id,
+        kind: project.kind,
+        model: project.model,
+        style: project.style,
+        title: project.title,
+      }),
+    );
+    void navigate({ to: "/ai" });
+  }
+
+  async function fetchProjectFiles(
+    id: string,
+  ): Promise<{ html: string; css: string; js: string } | null> {
+    const { data, error } = await supabase
+      .from("ai_projects")
+      .select("files")
+      .eq("id", id)
+      .single();
+    if (error || !data?.files) return null;
+    const files = data.files as { html?: string; css?: string; js?: string };
+    return { html: files.html ?? "", css: files.css ?? "", js: files.js ?? "" };
+  }
+
+  async function downloadProject(project: AiProject) {
+    setProjectAction({ type: "download", id: project.id });
+    const toastId = toast.loading("Preparing download...");
     try {
-      const { data, error } = await supabase.storage
-        .from(STORAGE_BUCKET)
-        .list(user.id, { limit: 200, sortBy: { column: "created_at", order: "desc" } });
-      if (error) throw error;
-      const items: StoredImage[] = (data ?? [])
-        .filter((f) => f.name !== ".emptyFolderPlaceholder")
-        .map((f) => ({
-          name: f.name,
-          path: `${user.id}/${f.name}`,
-          url: supabase.storage.from(STORAGE_BUCKET).getPublicUrl(`${user.id}/${f.name}`).data.publicUrl,
-          size: (f.metadata as { size?: number } | null)?.size ?? 0,
-          created_at: f.created_at || new Date().toISOString(),
-        }));
-      setImages(items);
+      const files = await fetchProjectFiles(project.id);
+      if (!files) {
+        toast.error("No files to download", { id: toastId });
+        return;
+      }
+      const { exportPlaygroundZip } = await import("@/lib/export-zip");
+      await exportPlaygroundZip(safeSlug(project.title), files.html, files.css, files.js);
+      toast.success("ZIP downloaded", { id: toastId });
     } catch {
-      setImages([]);
+      toast.error("Download failed", { id: toastId });
+    } finally {
+      setProjectAction(null);
     }
   }
 
-  // ── Project actions ──────────────────────────────────────────────────────────
-
-  async function handleDeleteProject(id: string) {
-    if (!confirm("Delete this project? This cannot be undone.")) return;
-    const { error } = await supabase.from("ai_projects").delete().eq("id", id);
-    if (error) { toast.error("Delete failed", { description: error.message }); return; }
-    setProjects((p) => p?.filter((x) => x.id !== id) ?? []);
-    toast.success("Project deleted");
-  }
-
-  async function handleDownloadProject(project: AiProject) {
-    if (!project.files) { toast.error("No files to download"); return; }
+  async function previewProject(project: AiProject) {
+    setProjectAction({ type: "preview", id: project.id });
+    const toastId = toast.loading("Opening preview...");
     try {
-      const { exportPlaygroundZip } = await import("@/lib/export-zip");
-      const slug = project.title.toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-+|-+$/g, "") || "kanyoai-site";
-      await exportPlaygroundZip(slug, project.files.html ?? "", project.files.css ?? "", project.files.js ?? "");
-      toast.success("ZIP downloaded");
-    } catch { toast.error("Download failed"); }
+      const files = await fetchProjectFiles(project.id);
+      if (!files?.html) {
+        toast.error("No preview available", { id: toastId });
+        return;
+      }
+      const html =
+        files.html +
+        (files.css ? `<style>${files.css}</style>` : "") +
+        (files.js ? `<script>${files.js}</script>` : "");
+      const url = URL.createObjectURL(new Blob([html], { type: "text/html" }));
+      window.open(url, "_blank");
+      window.setTimeout(() => URL.revokeObjectURL(url), 15000);
+      toast.success("Preview opened", { id: toastId });
+    } catch {
+      toast.error("Preview failed", { id: toastId });
+    } finally {
+      setProjectAction(null);
+    }
   }
 
-  // ── Image actions ────────────────────────────────────────────────────────────
+  function confirmDeleteProject(id: string) {
+    toast("Delete this project?", {
+      description: "This cannot be undone.",
+      action: { label: "Delete", onClick: () => void deleteProject(id) },
+      duration: 8000,
+    });
+  }
 
-  async function handleUploadImage(fileList: FileList | null) {
-    if (!fileList?.length || !user) return;
-    const file = Array.from(fileList).find((f) => f.type.startsWith("image/"));
-    if (!file) { toast.error("Upload image files only"); return; }
+  async function deleteProject(id: string) {
+    setProjectAction({ type: "delete", id });
+    try {
+      const { error } = await supabase.from("ai_projects").delete().eq("id", id);
+      if (error) throw error;
+      setProjects((current) => current.filter((project) => project.id !== id));
+      toast.success("Project deleted");
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : "Delete failed");
+    } finally {
+      setProjectAction(null);
+    }
+  }
+
+  async function uploadImage(fileList: FileList | null) {
+    if (!fileList?.length || !user?.id) return;
+    const file = Array.from(fileList).find((item) => item.type.startsWith("image/"));
+    if (!file) {
+      toast.error("Upload image files only");
+      return;
+    }
+
     setUploadingImage(true);
     try {
-      const path = `${user.id}/${Date.now()}-${file.name}`;
-      const { error } = await supabase.storage.from(STORAGE_BUCKET).upload(path, file, { contentType: file.type });
+      const path = `${user.id}/${Date.now()}-${file.name.replace(/[^a-zA-Z0-9._-]/g, "_")}`;
+      const { error } = await supabase.storage
+        .from(STORAGE_BUCKET)
+        .upload(path, file, { contentType: file.type });
       if (error) throw error;
       toast.success("Image uploaded");
-      await loadImages();
+      await loadImages(true);
     } catch (err) {
-      toast.error(
-        err instanceof Error ? err.message : "Upload failed",
-        { description: "Make sure the 'user-images' Supabase Storage bucket exists and is set to public." },
-      );
+      toast.error(err instanceof Error ? err.message : "Upload failed");
     } finally {
       setUploadingImage(false);
       if (uploadRef.current) uploadRef.current.value = "";
     }
   }
 
-  async function handleGenerateImage() {
-    if (!imagePrompt.trim()) { toast.error("Enter a prompt first"); return; }
-    if (!user) { toast.error("Sign in to generate images"); return; }
+  async function generateImage() {
+    if (!imagePrompt.trim()) {
+      toast.error("Enter a prompt first");
+      return;
+    }
+    if (!user?.id) {
+      toast.error("Sign in to generate images");
+      return;
+    }
+
     setGeneratingImage(true);
     try {
       const { data: sessionData } = await supabase.auth.getSession();
       const token = sessionData.session?.access_token;
       if (!token) throw new Error("Sign in to generate images.");
 
-      const res = await fetch("/api/generate-image", {
+      const response = await fetch("/api/generate-image", {
         method: "POST",
         headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
-        body: JSON.stringify({ prompt: imagePrompt, size: imageSize, quality: genQuality }),
+        body: JSON.stringify({ prompt: imagePrompt, size: imageSize, quality: imageQuality }),
       });
-      const json = await res.json() as { b64?: string; revisedPrompt?: string; error?: string };
-      if (!res.ok) throw new Error(json.error || "Generation failed");
+      const json = (await response.json()) as {
+        b64?: string;
+        revisedPrompt?: string;
+        error?: string;
+      };
+      if (!response.ok) throw new Error(json.error || "Generation failed");
+      if (!json.b64) throw new Error("No image data returned.");
 
-      // Convert base64 → Blob → upload to Supabase Storage
-      const binary = atob(json.b64!);
+      const binary = atob(json.b64);
       const bytes = new Uint8Array(binary.length);
-      for (let i = 0; i < binary.length; i++) bytes[i] = binary.charCodeAt(i);
-      const blob = new Blob([bytes], { type: "image/png" });
+      for (let i = 0; i < binary.length; i += 1) bytes[i] = binary.charCodeAt(i);
 
       const path = `${user.id}/ai-${Date.now()}.png`;
-      const { error: uploadError } = await supabase.storage.from(STORAGE_BUCKET).upload(path, blob, { contentType: "image/png" });
-      if (uploadError) throw uploadError;
+      const { error } = await supabase.storage
+        .from(STORAGE_BUCKET)
+        .upload(path, new Blob([bytes], { type: "image/png" }), { contentType: "image/png" });
+      if (error) throw error;
 
-      toast.success("Image generated and saved to library");
-      if (json.revisedPrompt && json.revisedPrompt !== imagePrompt) {
-        toast.info("Prompt refined by AI", { description: json.revisedPrompt });
-      }
+      toast.success("Image generated and saved");
       setImagePrompt("");
-      await loadImages();
+      await loadImages(true);
     } catch (err) {
       toast.error(err instanceof Error ? err.message : "Image generation failed");
     } finally {
@@ -281,13 +462,19 @@ function DashboardPage() {
     }
   }
 
-  async function handleDeleteImage(img: StoredImage) {
-    if (!confirm(`Delete "${img.name}"? This cannot be undone.`)) return;
-    setDeletingImagePath(img.path);
+  function confirmDeleteImage(image: StoredImage) {
+    toast(`Delete "${image.name}"?`, {
+      action: { label: "Delete", onClick: () => void deleteImage(image) },
+      duration: 8000,
+    });
+  }
+
+  async function deleteImage(image: StoredImage) {
+    setDeletingImagePath(image.path);
     try {
-      const { error } = await supabase.storage.from(STORAGE_BUCKET).remove([img.path]);
+      const { error } = await supabase.storage.from(STORAGE_BUCKET).remove([image.path]);
       if (error) throw error;
-      setImages((prev) => prev?.filter((x) => x.path !== img.path) ?? []);
+      setImages((current) => current.filter((item) => item.path !== image.path));
       toast.success("Image deleted");
     } catch (err) {
       toast.error(err instanceof Error ? err.message : "Delete failed");
@@ -296,731 +483,1177 @@ function DashboardPage() {
     }
   }
 
-  async function copyUrl(url: string) {
-    await navigator.clipboard.writeText(url);
-    setCopied(url);
-    toast.success("URL copied to clipboard");
-    setTimeout(() => setCopied(null), 2000);
+  async function copyImageUrl(url: string) {
+    try {
+      await navigator.clipboard.writeText(url);
+      setCopiedUrl(url);
+      toast.success("URL copied");
+      window.setTimeout(() => setCopiedUrl(null), 1800);
+    } catch {
+      toast.error("Could not copy URL");
+    }
   }
 
-  // ── Settings ─────────────────────────────────────────────────────────────────
-
-  function updateSettings(patch: Partial<AppSettings>) {
+  async function updateSettings(patch: Partial<AppSettings>) {
     const next = { ...settings, ...patch };
     setSettings(next);
     saveSettings(next);
+    if ("displayName" in patch && user?.id && isSupabaseConfigured) {
+      await supabase
+        .from("profiles")
+        .update({ full_name: patch.displayName ?? "" })
+        .eq("id", user.id);
+    }
     toast.success("Settings saved");
   }
 
-  // ── Derived ───────────────────────────────────────────────────────────────────
+  const filteredProjects = useMemo(() => {
+    const term = query.trim().toLowerCase();
+    const list = term
+      ? projects.filter(
+          (project) =>
+            project.title.toLowerCase().includes(term) || project.kind.toLowerCase().includes(term),
+        )
+      : [...projects];
 
-  const now = new Date();
-  const thisMonth = (projects ?? []).filter((p) => {
-    const d = new Date(p.created_at);
-    return d.getFullYear() === now.getFullYear() && d.getMonth() === now.getMonth();
-  }).length;
-
-  const modelUsage = useMemo(() => {
-    const counts: Record<string, number> = {};
-    for (const p of projects ?? []) { const m = p.model || "unknown"; counts[m] = (counts[m] || 0) + 1; }
-    return Object.entries(counts).sort((a, b) => b[1] - a[1]).slice(0, 4);
-  }, [projects]);
-
-  const kindUsage = useMemo(() => {
-    const counts: Record<string, number> = {};
-    for (const p of projects ?? []) { const k = p.kind || "other"; counts[k] = (counts[k] || 0) + 1; }
-    return Object.entries(counts).sort((a, b) => b[1] - a[1]).slice(0, 5);
-  }, [projects]);
-
-  const filtered = useMemo(() => {
-    if (!projects) return null;
-    const q = query.trim().toLowerCase();
-    const list = q ? projects.filter((p) => p.title.toLowerCase().includes(q) || p.kind.toLowerCase().includes(q)) : [...projects];
     list.sort((a, b) => {
       switch (sort) {
-        case "updated_asc": return +new Date(a.updated_at) - +new Date(b.updated_at);
-        case "name_asc":    return a.title.localeCompare(b.title);
-        case "name_desc":   return b.title.localeCompare(a.title);
-        default:            return +new Date(b.updated_at) - +new Date(a.updated_at);
+        case "updated_asc":
+          return +new Date(a.updated_at) - +new Date(b.updated_at);
+        case "name_asc":
+          return a.title.localeCompare(b.title);
+        case "name_desc":
+          return b.title.localeCompare(a.title);
+        default:
+          return +new Date(b.updated_at) - +new Date(a.updated_at);
       }
     });
+
     return list;
   }, [projects, query, sort]);
 
-  const isLoading = authLoading && !user;
-  const preferredModelLabel = SETTINGS_MODELS.find((m) => m.id === settings.preferredModel)?.label ?? "GPT-5.4 Mini";
+  const thisMonth = useMemo(() => {
+    const now = new Date();
+    return projects.filter((project) => {
+      const created = new Date(project.created_at);
+      return created.getFullYear() === now.getFullYear() && created.getMonth() === now.getMonth();
+    }).length;
+  }, [projects]);
 
-  // ─────────────────────────────────────────────────────────────────────────────
+  const displayName = settings.displayName || user?.email?.split("@")[0] || "Workspace";
+  const preferredModel =
+    SETTINGS_MODELS.find((model) => model.id === settings.preferredModel)?.label ?? "GPT-5.4 Mini";
+
+  if (authLoading && !user) {
+    return <DashboardLoading title="Loading dashboard" />;
+  }
 
   return (
-    <div className="flex min-h-screen flex-col bg-background text-foreground">
-      <SiteHeader />
-
-      {/* Page header */}
-      <div className="border-b border-border bg-card">
-        <div className="mx-auto max-w-7xl px-4 py-7 sm:px-6">
-          <p className="font-mono text-xs uppercase tracking-widest text-muted-foreground">Dashboard</p>
-          <div className="mt-2 flex flex-wrap items-center justify-between gap-3">
-            <div>
-              <h1 className="font-display text-3xl font-semibold md:text-4xl">
-                {isLoading ? (
-                  <span className="inline-block h-9 w-48 animate-pulse rounded-lg bg-muted" />
-                ) : (
-                  settings.displayName || user?.email?.split("@")[0] || "My workspace"
-                )}
-              </h1>
-              <p className="mt-1 text-sm text-muted-foreground">{user?.email}</p>
-            </div>
-            <Link to="/ai">
-              <Button className="gap-2">
-                <Sparkles className="h-4 w-4" /> New project
-              </Button>
+    <div className="min-h-screen bg-slate-50 text-slate-950">
+      <div className="mx-auto flex min-h-screen max-w-[1480px]">
+        <aside className="hidden w-72 shrink-0 border-r border-slate-200 bg-white xl:flex xl:flex-col">
+          <div className="border-b border-slate-200 px-6 py-5">
+            <Link to="/" className="inline-flex items-center gap-2 font-semibold">
+              <span className="flex h-9 w-9 items-center justify-center rounded-lg bg-slate-950 text-white">
+                <Sparkles className="h-4 w-4" />
+              </span>
+              kanyoai
             </Link>
           </div>
-        </div>
 
-        {/* Tab nav */}
-        <div className="mx-auto max-w-7xl px-4 sm:px-6">
-          <nav className="flex gap-0.5">
-            {TABS.map((t) => (
-              <button
-                key={t.id}
-                type="button"
-                onClick={() => setTab(t.id)}
-                className={[
-                  "border-b-2 px-4 py-3 text-sm font-medium transition-colors",
-                  tab === t.id
-                    ? "border-primary text-primary"
-                    : "border-transparent text-muted-foreground hover:text-foreground",
-                ].join(" ")}
-              >
-                {t.label}
-                {t.id === "projects" && projects !== null && (
-                  <span className="ml-1.5 rounded-full bg-muted px-1.5 py-0.5 text-[10px] font-semibold text-muted-foreground">
-                    {projects.length}
-                  </span>
-                )}
-                {t.id === "images" && images !== null && images.length > 0 && (
-                  <span className="ml-1.5 rounded-full bg-muted px-1.5 py-0.5 text-[10px] font-semibold text-muted-foreground">
-                    {images.length}
-                  </span>
-                )}
-              </button>
+          <nav className="flex-1 space-y-1 px-4 py-5" aria-label="Dashboard">
+            {NAV_ITEMS.map((item) => (
+              <DashboardTabButton
+                key={item.id}
+                item={item}
+                active={activeTab === item.id}
+                count={
+                  item.id === "projects"
+                    ? projects.length
+                    : item.id === "images" && imagesLoaded
+                      ? images.length
+                      : undefined
+                }
+                onClick={() => goToTab(item.id)}
+              />
             ))}
+
+            <div className="my-4 border-t border-slate-200" />
+            <Button asChild variant="ghost" className="w-full justify-start">
+              <Link to="/ai">
+                <Wand2 className="h-4 w-4" />
+                AI generator
+              </Link>
+            </Button>
           </nav>
-        </div>
+
+          <div className="border-t border-slate-200 p-4">
+            <div className="mb-3 flex items-center gap-3 rounded-lg bg-slate-50 p-3">
+              {profile?.avatar_url ? (
+                <img
+                  src={profile.avatar_url}
+                  alt=""
+                  className="h-9 w-9 rounded-full object-cover"
+                />
+              ) : (
+                <div className="flex h-9 w-9 items-center justify-center rounded-full bg-slate-950 text-sm font-semibold text-white">
+                  {displayName.charAt(0).toUpperCase()}
+                </div>
+              )}
+              <div className="min-w-0">
+                <p className="truncate text-sm font-semibold">{displayName}</p>
+                <p className="truncate text-xs text-slate-500">{user?.email}</p>
+              </div>
+            </div>
+            <Button
+              type="button"
+              variant="outline"
+              className="w-full justify-start text-slate-600"
+              onClick={() => void signOut().then(() => navigate({ to: "/" }))}
+            >
+              <LogOut className="h-4 w-4" />
+              Sign out
+            </Button>
+          </div>
+        </aside>
+
+        <section className="flex min-w-0 flex-1 flex-col">
+          <header className="sticky top-0 z-20 border-b border-slate-200 bg-white/95 px-4 py-4 backdrop-blur sm:px-6 lg:px-8">
+            <div className="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
+              <div>
+                <p className="text-xs font-semibold uppercase tracking-wide text-slate-500">
+                  Dashboard
+                </p>
+                <h1 className="mt-1 text-2xl font-semibold tracking-tight sm:text-3xl">
+                  {tabTitle(activeTab)}
+                </h1>
+              </div>
+              <div className="flex flex-wrap gap-2">
+                <Button asChild variant="outline">
+                  <Link to="/playground">Playground</Link>
+                </Button>
+                <Button asChild>
+                  <Link to="/ai">
+                    <Sparkles className="h-4 w-4" />
+                    New project
+                  </Link>
+                </Button>
+              </div>
+            </div>
+          </header>
+
+          <div className="border-b border-slate-200 bg-white px-3 py-2 xl:hidden">
+            <div className="flex gap-2 overflow-x-auto">
+              {NAV_ITEMS.map((item) => (
+                <DashboardTabButton
+                  key={item.id}
+                  item={item}
+                  active={activeTab === item.id}
+                  compact
+                  onClick={() => goToTab(item.id)}
+                />
+              ))}
+            </div>
+          </div>
+
+          <main className="flex-1 px-4 py-5 sm:px-6 lg:px-8">
+            {activeTab === "overview" && (
+              <OverviewTab
+                projects={projects}
+                projectsLoading={projectsLoading}
+                images={images}
+                imagesLoaded={imagesLoaded}
+                thisMonth={thisMonth}
+                preferredModel={preferredModel}
+                onTab={goToTab}
+                onEdit={handleEditProject}
+                onDownload={downloadProject}
+                projectAction={projectAction}
+              />
+            )}
+
+            {activeTab === "projects" && (
+              <ProjectsTab
+                projects={projects}
+                filteredProjects={filteredProjects}
+                loading={projectsLoading}
+                error={projectsError}
+                query={query}
+                sort={sort}
+                onQuery={setQuery}
+                onSort={setSort}
+                onRetry={loadProjects}
+                onEdit={handleEditProject}
+                onPreview={previewProject}
+                onDownload={downloadProject}
+                onDelete={confirmDeleteProject}
+                projectAction={projectAction}
+              />
+            )}
+
+            {activeTab === "images" && (
+              <ImagesTab
+                images={images}
+                loaded={imagesLoaded}
+                loading={imagesLoading}
+                error={imagesError}
+                imagePrompt={imagePrompt}
+                imageSize={imageSize}
+                imageQuality={imageQuality}
+                generatingImage={generatingImage}
+                uploadingImage={uploadingImage}
+                deletingImagePath={deletingImagePath}
+                copiedUrl={copiedUrl}
+                onPrompt={setImagePrompt}
+                onSize={setImageSize}
+                onQuality={setImageQuality}
+                onUploadClick={() => uploadRef.current?.click()}
+                onGenerate={generateImage}
+                onRetry={() => void loadImages(true)}
+                onDelete={confirmDeleteImage}
+                onCopy={copyImageUrl}
+              />
+            )}
+
+            {activeTab === "settings" && (
+              <SettingsTab
+                user={user}
+                profile={profile}
+                settings={settings}
+                onSave={updateSettings}
+                onSignOut={() => void signOut().then(() => navigate({ to: "/" }))}
+              />
+            )}
+          </main>
+        </section>
       </div>
-
-      {/* Tab content */}
-      <main className="mx-auto w-full max-w-7xl flex-1 px-4 py-8 sm:px-6">
-
-        {tab === "overview" && (
-          <OverviewTab
-            loading={isLoading}
-            projects={projects}
-            images={images}
-            thisMonth={thisMonth}
-            preferredModelLabel={preferredModelLabel}
-            modelUsage={modelUsage}
-            kindUsage={kindUsage}
-            onTabChange={setTab}
-            onDownload={handleDownloadProject}
-          />
-        )}
-
-        {tab === "projects" && (
-          <ProjectsTab
-            projects={projects}
-            filtered={filtered}
-            query={query}
-            sort={sort}
-            onQuery={setQuery}
-            onSort={setSort}
-            onDelete={handleDeleteProject}
-            onDownload={handleDownloadProject}
-          />
-        )}
-
-        {tab === "images" && (
-          <ImagesTab
-            images={images}
-            uploadRef={uploadRef}
-            imagePrompt={imagePrompt}
-            imageSize={imageSize}
-            genQuality={genQuality}
-            generatingImage={generatingImage}
-            uploadingImage={uploadingImage}
-            deletingImagePath={deletingImagePath}
-            copied={copied}
-            onPromptChange={setImagePrompt}
-            onSizeChange={setImageSize}
-            onQualityChange={setGenQuality}
-            onGenerate={handleGenerateImage}
-            onUpload={handleUploadImage}
-            onDelete={handleDeleteImage}
-            onCopyUrl={copyUrl}
-          />
-        )}
-
-        {tab === "settings" && (
-          <SettingsTab
-            user={user}
-            settings={settings}
-            onSave={updateSettings}
-            onSignOut={() => void signOut().then(() => navigate({ to: "/" }))}
-          />
-        )}
-      </main>
 
       <input
         ref={uploadRef}
         type="file"
         accept="image/png,image/jpeg,image/webp,image/gif"
         className="hidden"
-        onChange={(e) => void handleUploadImage(e.target.files)}
+        onChange={(event) => void uploadImage(event.target.files)}
       />
     </div>
   );
 }
 
-// ─── Overview tab ─────────────────────────────────────────────────────────────
+function DashboardLoading({ title }: { title: string }) {
+  return (
+    <div className="flex min-h-screen items-center justify-center bg-slate-50">
+      <div className="flex items-center gap-3 rounded-lg border border-slate-200 bg-white px-4 py-3 text-sm text-slate-600 shadow-sm">
+        <Loader2 className="h-4 w-4 animate-spin" />
+        {title}
+      </div>
+    </div>
+  );
+}
+
+function DashboardTabButton({
+  item,
+  active,
+  count,
+  compact = false,
+  onClick,
+}: {
+  item: { id: DashTab; label: string; Icon: ElementType };
+  active: boolean;
+  count?: number;
+  compact?: boolean;
+  onClick: () => void;
+}) {
+  const Icon = item.Icon;
+  return (
+    <button
+      type="button"
+      onClick={onClick}
+      className={[
+        "inline-flex items-center gap-3 rounded-lg text-sm font-medium transition-colors",
+        compact ? "shrink-0 px-3 py-2" : "w-full px-3 py-2.5",
+        active
+          ? "bg-slate-950 text-white"
+          : "text-slate-600 hover:bg-slate-100 hover:text-slate-950",
+      ].join(" ")}
+    >
+      <Icon className="h-4 w-4" />
+      {item.label}
+      {typeof count === "number" && !compact && (
+        <span
+          className={active ? "ml-auto text-xs text-white/70" : "ml-auto text-xs text-slate-400"}
+        >
+          {count}
+        </span>
+      )}
+    </button>
+  );
+}
+
+function tabTitle(tab: DashTab) {
+  switch (tab) {
+    case "projects":
+      return "Projects";
+    case "images":
+      return "Images";
+    case "settings":
+      return "Settings";
+    default:
+      return "Workspace overview";
+  }
+}
 
 function OverviewTab({
-  loading, projects, images, thisMonth, preferredModelLabel, modelUsage, kindUsage, onTabChange, onDownload,
+  projects,
+  projectsLoading,
+  images,
+  imagesLoaded,
+  thisMonth,
+  preferredModel,
+  onTab,
+  onEdit,
+  onDownload,
+  projectAction,
 }: {
-  loading: boolean;
-  projects: AiProject[] | null;
-  images: StoredImage[] | null;
+  projects: AiProject[];
+  projectsLoading: boolean;
+  images: StoredImage[];
+  imagesLoaded: boolean;
   thisMonth: number;
-  preferredModelLabel: string;
-  modelUsage: [string, number][];
-  kindUsage: [string, number][];
-  onTabChange: (t: DashTab) => void;
-  onDownload: (p: AiProject) => void;
+  preferredModel: string;
+  onTab: (tab: DashTab) => void;
+  onEdit: (project: AiProject) => void;
+  onDownload: (project: AiProject) => void;
+  projectAction: ProjectAction | null;
 }) {
-  const total = projects?.length ?? 0;
-  const maxKind = kindUsage[0]?.[1] ?? 1;
-
-  const STATS = [
-    { label: "Total projects", value: loading ? null : total,                         icon: FolderOpen, color: "text-blue-500",   bg: "bg-blue-500/10" },
-    { label: "Saved images",   value: loading ? null : images?.length ?? "—",          icon: ImageIcon,  color: "text-violet-500", bg: "bg-violet-500/10" },
-    { label: "This month",     value: loading ? null : thisMonth,                      icon: Zap,        color: "text-green-500",  bg: "bg-green-500/10" },
-    { label: "Preferred model",value: loading ? null : preferredModelLabel,            icon: Star,       color: "text-amber-500",  bg: "bg-amber-500/10" },
-  ];
-
+  const recent = projects.slice(0, 5);
   return (
-    <div className="space-y-8">
-      {/* Stat cards */}
-      <div className="grid grid-cols-2 gap-4 lg:grid-cols-4">
-        {STATS.map((s) => (
-          <div key={s.label} className="rounded-xl border border-border bg-card p-5">
-            <div className={`mb-3 flex h-10 w-10 items-center justify-center rounded-xl ${s.bg}`}>
-              <s.icon className={`h-5 w-5 ${s.color}`} />
+    <div className="space-y-6">
+      <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
+        <StatCard
+          label="Projects"
+          value={projectsLoading ? null : projects.length}
+          Icon={FolderOpen}
+        />
+        <StatCard
+          label="Saved images"
+          value={imagesLoaded ? images.length : null}
+          Icon={ImageIcon}
+        />
+        <StatCard label="This month" value={projectsLoading ? null : thisMonth} Icon={Clock} />
+        <StatCard label="Default model" value={preferredModel} Icon={Sparkles} />
+      </div>
+
+      <div className="grid gap-6 xl:grid-cols-[1.2fr_0.8fr]">
+        <section className="rounded-lg border border-slate-200 bg-white p-4 shadow-sm sm:p-5">
+          <div className="mb-4 flex items-center justify-between gap-3">
+            <div>
+              <h2 className="font-semibold">Recent projects</h2>
+              <p className="text-sm text-slate-500">
+                Continue or export your latest generated sites.
+              </p>
             </div>
-            {s.value === null ? (
-              <div className="h-8 w-16 animate-pulse rounded-md bg-muted" />
-            ) : (
-              <p className="text-2xl font-bold">{s.value}</p>
-            )}
-            <p className="mt-1 text-xs text-muted-foreground">{s.label}</p>
+            <Button type="button" variant="outline" size="sm" onClick={() => onTab("projects")}>
+              View all
+            </Button>
           </div>
-        ))}
-      </div>
 
-      {/* Quick actions */}
-      <div>
-        <h2 className="mb-3 text-sm font-semibold text-muted-foreground uppercase tracking-wider">Quick actions</h2>
-        <div className="grid grid-cols-1 gap-3 sm:grid-cols-3">
-          <Link to="/ai" className="group flex items-center gap-3 rounded-xl border border-border bg-card p-4 transition-all hover:border-primary/50 hover:shadow-sm">
-            <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-primary/10"><Sparkles className="h-5 w-5 text-primary" /></span>
-            <div>
-              <p className="font-medium text-sm">New AI project</p>
-              <p className="text-xs text-muted-foreground">Generate a website</p>
-            </div>
-          </Link>
-          <Link to="/playground" className="group flex items-center gap-3 rounded-xl border border-border bg-card p-4 transition-all hover:border-primary/50 hover:shadow-sm">
-            <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-green-500/10"><Wand2 className="h-5 w-5 text-green-500" /></span>
-            <div>
-              <p className="font-medium text-sm">Playground</p>
-              <p className="text-xs text-muted-foreground">Edit code directly</p>
-            </div>
-          </Link>
-          <button type="button" onClick={() => onTabChange("images")} className="group flex items-center gap-3 rounded-xl border border-border bg-card p-4 transition-all hover:border-primary/50 hover:shadow-sm text-left">
-            <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-violet-500/10"><ImagePlus className="h-5 w-5 text-violet-500" /></span>
-            <div>
-              <p className="font-medium text-sm">Image library</p>
-              <p className="text-xs text-muted-foreground">Upload or generate images</p>
-            </div>
-          </button>
-        </div>
-      </div>
-
-      {/* Analytics row */}
-      {(kindUsage.length > 0 || modelUsage.length > 0) && (
-        <div className="grid grid-cols-1 gap-6 md:grid-cols-2">
-          {/* Projects by type */}
-          {kindUsage.length > 0 && (
-            <div className="rounded-xl border border-border bg-card p-5">
-              <h3 className="mb-4 text-sm font-semibold">Projects by type</h3>
-              <div className="space-y-2.5">
-                {kindUsage.map(([kind, count]) => (
-                  <div key={kind}>
-                    <div className="mb-1 flex items-center justify-between text-xs">
-                      <span className="capitalize font-medium">{kind}</span>
-                      <span className="text-muted-foreground">{count}</span>
-                    </div>
-                    <div className="h-1.5 rounded-full bg-muted">
-                      <div
-                        className="h-1.5 rounded-full bg-primary transition-all"
-                        style={{ width: `${Math.round((count / maxKind) * 100)}%` }}
-                      />
-                    </div>
-                  </div>
-                ))}
-              </div>
+          {projectsLoading ? (
+            <SkeletonRows />
+          ) : recent.length === 0 ? (
+            <EmptyState
+              Icon={FolderOpen}
+              title="No projects yet"
+              body="Generate your first website and it will appear here."
+              action={
+                <Button asChild>
+                  <Link to="/ai">Open generator</Link>
+                </Button>
+              }
+            />
+          ) : (
+            <div className="space-y-2">
+              {recent.map((project) => (
+                <ProjectRow
+                  key={project.id}
+                  project={project}
+                  onEdit={onEdit}
+                  onDownload={onDownload}
+                  action={projectAction}
+                />
+              ))}
             </div>
           )}
+        </section>
 
-          {/* Models used */}
-          {modelUsage.length > 0 && (
-            <div className="rounded-xl border border-border bg-card p-5">
-              <h3 className="mb-4 text-sm font-semibold">Models used</h3>
-              <div className="space-y-2.5">
-                {modelUsage.map(([model, count], i) => (
-                  <div key={model} className="flex items-center gap-3">
-                    <span className={`flex h-6 w-6 shrink-0 items-center justify-center rounded-full text-[10px] font-bold text-white ${i === 0 ? "bg-primary" : "bg-muted-foreground/40"}`}>
-                      {i + 1}
-                    </span>
-                    <span className="flex-1 truncate font-mono text-xs">{model}</span>
-                    <span className="shrink-0 text-xs text-muted-foreground">{count}×</span>
-                  </div>
-                ))}
-              </div>
-            </div>
-          )}
-        </div>
-      )}
+        <section className="rounded-lg border border-slate-200 bg-white p-4 shadow-sm sm:p-5">
+          <h2 className="font-semibold">Quick actions</h2>
+          <div className="mt-4 grid gap-3">
+            <Button asChild className="justify-start">
+              <Link to="/ai">
+                <Sparkles className="h-4 w-4" />
+                Create website
+              </Link>
+            </Button>
+            <Button
+              type="button"
+              variant="outline"
+              className="justify-start"
+              onClick={() => onTab("images")}
+            >
+              <ImageIcon className="h-4 w-4" />
+              Open image library
+            </Button>
+            <Button asChild variant="outline" className="justify-start">
+              <Link to="/playground">
+                <Wand2 className="h-4 w-4" />
+                Open playground
+              </Link>
+            </Button>
+          </div>
+        </section>
+      </div>
+    </div>
+  );
+}
 
-      {/* Recent projects */}
-      {projects && projects.length > 0 && (
+function StatCard({
+  label,
+  value,
+  Icon,
+}: {
+  label: string;
+  value: string | number | null;
+  Icon: ElementType;
+}) {
+  return (
+    <div className="rounded-lg border border-slate-200 bg-white p-4 shadow-sm">
+      <div className="flex items-center justify-between gap-3">
         <div>
-          <div className="mb-3 flex items-center justify-between">
-            <h2 className="text-sm font-semibold text-muted-foreground uppercase tracking-wider">Recent projects</h2>
-            <button type="button" onClick={() => onTabChange("projects")} className="text-xs text-primary hover:underline">View all</button>
-          </div>
-          <div className="space-y-2">
-            {projects.slice(0, 5).map((p) => (
-              <div key={p.id} className="flex items-center justify-between gap-4 rounded-lg border border-border bg-card px-4 py-3">
-                <div className="min-w-0 flex-1">
-                  <p className="truncate text-sm font-medium">{p.title}</p>
-                  <p className="text-xs text-muted-foreground capitalize">{p.kind} · {p.model || "—"}</p>
-                </div>
-                <div className="flex shrink-0 items-center gap-2">
-                  <span className="hidden text-xs text-muted-foreground sm:inline">
-                    {formatDistanceToNow(new Date(p.updated_at), { addSuffix: true })}
-                  </span>
-                  <Button size="sm" variant="outline" className="h-7 px-2 text-xs" disabled={!p.files} onClick={() => void onDownload(p)}>
-                    <Download className="h-3 w-3 sm:mr-1" /><span className="hidden sm:inline">Download</span>
-                  </Button>
-                </div>
-              </div>
-            ))}
-          </div>
+          <p className="text-sm text-slate-500">{label}</p>
+          {value === null ? (
+            <div className="mt-3 h-7 w-20 animate-pulse rounded bg-slate-100" />
+          ) : (
+            <p className="mt-2 truncate text-2xl font-semibold">{value}</p>
+          )}
         </div>
-      )}
-
-      {/* Features strip */}
-      <div className="rounded-xl border border-border bg-gradient-to-br from-primary/5 to-transparent p-6">
-        <h3 className="mb-1 font-semibold">What you can do with kanyoai</h3>
-        <p className="mb-5 text-sm text-muted-foreground">Everything you need to build and ship websites fast.</p>
-        <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
-          {[
-            { icon: Sparkles, title: "AI Generator",  desc: "Full site from a brief in seconds" },
-            { icon: Wand2,     title: "Playground",    desc: "Edit HTML, CSS, JS live" },
-            { icon: ImageIcon, title: "Image Library", desc: "Generate & host images with URLs" },
-            { icon: Download,  title: "Clean Exports", desc: "ZIP with HTML, CSS, JS — yours to keep" },
-          ].map((f) => (
-            <div key={f.title} className="flex flex-col gap-2 rounded-lg border border-border bg-card p-3">
-              <f.icon className="h-4 w-4 text-primary" />
-              <p className="text-xs font-semibold">{f.title}</p>
-              <p className="text-[11px] text-muted-foreground leading-tight">{f.desc}</p>
-            </div>
-          ))}
+        <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-slate-100 text-slate-700">
+          <Icon className="h-5 w-5" />
         </div>
       </div>
     </div>
   );
 }
 
-// ─── Projects tab ─────────────────────────────────────────────────────────────
-
 function ProjectsTab({
-  projects, filtered, query, sort, onQuery, onSort, onDelete, onDownload,
+  projects,
+  filteredProjects,
+  loading,
+  error,
+  query,
+  sort,
+  onQuery,
+  onSort,
+  onRetry,
+  onEdit,
+  onPreview,
+  onDownload,
+  onDelete,
+  projectAction,
 }: {
-  projects: AiProject[] | null;
-  filtered: AiProject[] | null;
+  projects: AiProject[];
+  filteredProjects: AiProject[];
+  loading: boolean;
+  error: string | null;
   query: string;
   sort: SortKey;
-  onQuery: (v: string) => void;
-  onSort: (v: SortKey) => void;
+  onQuery: (value: string) => void;
+  onSort: (value: SortKey) => void;
+  onRetry: () => void;
+  onEdit: (project: AiProject) => void;
+  onPreview: (project: AiProject) => void;
+  onDownload: (project: AiProject) => void;
   onDelete: (id: string) => void;
-  onDownload: (p: AiProject) => void;
+  projectAction: ProjectAction | null;
 }) {
-  if (projects === null) {
-    return <div className="rounded-xl border border-border bg-card p-10 text-center text-sm text-muted-foreground">Loading projects…</div>;
-  }
-  if (projects.length === 0) {
-    return (
-      <div className="rounded-xl border border-dashed border-border bg-muted/20 p-14 text-center">
-        <FolderOpen className="mx-auto h-8 w-8 text-muted-foreground" />
-        <p className="mt-4 font-display text-xl font-semibold">No projects yet</p>
-        <p className="mt-2 text-sm text-muted-foreground">Generate a website with AI and save it to your account.</p>
-        <Link to="/ai"><Button className="mt-5 gap-2"><Sparkles className="h-4 w-4" /> Open AI Generator</Button></Link>
-      </div>
-    );
-  }
-
+  const visible = filteredProjects.slice(0, MAX_RENDERED_PROJECTS);
   return (
     <div className="space-y-5">
-      {/* Toolbar */}
-      <div className="flex flex-col gap-3 rounded-xl border border-border bg-card p-3 sm:flex-row sm:items-center sm:justify-between">
-        <div className="relative w-full sm:max-w-sm">
-          <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
-          <Input value={query} onChange={(e) => onQuery(e.target.value)} placeholder="Search projects…" className="pl-9" />
+      <section className="rounded-lg border border-slate-200 bg-white p-4 shadow-sm sm:p-5">
+        <div className="grid gap-3 lg:grid-cols-[1fr_auto_auto] lg:items-center">
+          <div className="relative">
+            <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400" />
+            <Input
+              value={query}
+              onChange={(event) => onQuery(event.target.value)}
+              placeholder="Search projects"
+              className="pl-9"
+            />
+          </div>
+          <select
+            value={sort}
+            onChange={(event) => onSort(event.target.value as SortKey)}
+            className="h-9 rounded-md border border-slate-200 bg-white px-3 text-sm text-slate-700 shadow-sm outline-none focus:ring-1 focus:ring-slate-400"
+          >
+            <option value="updated_desc">Recently updated</option>
+            <option value="updated_asc">Oldest updated</option>
+            <option value="name_asc">Name A-Z</option>
+            <option value="name_desc">Name Z-A</option>
+          </select>
+          <Button type="button" variant="outline" size="sm" onClick={onRetry} disabled={loading}>
+            {loading ? (
+              <Loader2 className="h-4 w-4 animate-spin" />
+            ) : (
+              <RefreshCw className="h-4 w-4" />
+            )}
+            Refresh
+          </Button>
         </div>
-        <div className="flex items-center gap-2">
-          <span className="text-xs text-muted-foreground">Sort</span>
-          <Select value={sort} onValueChange={(v) => onSort(v as SortKey)}>
-            <SelectTrigger className="h-9 w-[180px]"><SelectValue /></SelectTrigger>
-            <SelectContent>
-              <SelectItem value="updated_desc">Recently updated</SelectItem>
-              <SelectItem value="updated_asc">Oldest updated</SelectItem>
-              <SelectItem value="name_asc">Name A–Z</SelectItem>
-              <SelectItem value="name_desc">Name Z–A</SelectItem>
-            </SelectContent>
-          </Select>
-        </div>
-      </div>
+      </section>
 
-      {filtered && filtered.length === 0 ? (
-        <div className="rounded-xl border border-dashed border-border p-10 text-center">
-          <p className="text-sm text-muted-foreground">No projects match &ldquo;{query}&rdquo;.</p>
-        </div>
+      {error ? (
+        <ErrorState title="Projects could not load" body={error} onRetry={onRetry} />
+      ) : loading ? (
+        <SkeletonCards />
+      ) : projects.length === 0 ? (
+        <EmptyState
+          Icon={FolderOpen}
+          title="No projects yet"
+          body="Generate a website and save it to your account."
+          action={
+            <Button asChild>
+              <Link to="/ai">Open AI generator</Link>
+            </Button>
+          }
+        />
+      ) : visible.length === 0 ? (
+        <EmptyState Icon={Search} title="No matches" body={`No projects match "${query}".`} />
       ) : (
-        <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3">
-          {(filtered ?? []).map((p) => (
-            <ProjectCard key={p.id} project={p} onDelete={onDelete} onDownload={onDownload} />
-          ))}
-        </div>
+        <>
+          <div className="grid gap-3 md:grid-cols-2 2xl:grid-cols-3">
+            {visible.map((project) => (
+              <ProjectCard
+                key={project.id}
+                project={project}
+                action={projectAction}
+                onEdit={onEdit}
+                onPreview={onPreview}
+                onDownload={onDownload}
+                onDelete={onDelete}
+              />
+            ))}
+          </div>
+          {filteredProjects.length > visible.length && (
+            <p className="text-sm text-slate-500">
+              Showing the latest {visible.length} projects to keep the dashboard fast.
+            </p>
+          )}
+        </>
       )}
     </div>
   );
 }
 
 function ProjectCard({
-  project, onDelete, onDownload,
+  project,
+  action,
+  onEdit,
+  onPreview,
+  onDownload,
+  onDelete,
 }: {
   project: AiProject;
+  action: ProjectAction | null;
+  onEdit: (project: AiProject) => void;
+  onPreview: (project: AiProject) => void;
+  onDownload: (project: AiProject) => void;
   onDelete: (id: string) => void;
-  onDownload: (p: AiProject) => void;
 }) {
-  function openPreview() {
-    const f = project.files;
-    if (!f?.html) return;
-    const html = (f.html || "") + (f.css ? `<style>${f.css}</style>` : "") + (f.js ? `<script>${f.js}<\/script>` : "");
-    const blob = new Blob([html], { type: "text/html" });
-    const url = URL.createObjectURL(blob);
-    window.open(url, "_blank");
-    setTimeout(() => URL.revokeObjectURL(url), 10000);
-  }
-
-  const styleLabel = (project.style as { label?: string } | null)?.label;
+  const deleting = action?.type === "delete" && action.id === project.id;
+  const downloading = action?.type === "download" && action.id === project.id;
+  const previewing = action?.type === "preview" && action.id === project.id;
 
   return (
-    <article className="flex flex-col rounded-xl border border-border bg-card p-5 transition-shadow hover:shadow-md">
+    <article className="rounded-lg border border-slate-200 bg-white p-4 shadow-sm">
       <div className="flex items-start justify-between gap-3">
         <div className="min-w-0">
-          <h2 className="truncate font-display text-base font-semibold">{project.title}</h2>
-          <div className="mt-1.5 flex flex-wrap items-center gap-1.5">
-            <span className="rounded-full bg-primary/10 px-2 py-0.5 text-[11px] font-medium capitalize text-primary">{project.kind}</span>
-            {styleLabel && <span className="rounded-full bg-muted px-2 py-0.5 text-[11px] text-muted-foreground">{styleLabel}</span>}
+          <h2 className="truncate font-semibold">{project.title}</h2>
+          <div className="mt-2 flex flex-wrap gap-2">
+            <span
+              className={`rounded px-2 py-1 text-xs font-medium capitalize ring-1 ${kindBadge(project.kind)}`}
+            >
+              {project.kind}
+            </span>
+            {project.model && (
+              <span className="rounded bg-slate-100 px-2 py-1 font-mono text-xs text-slate-500">
+                {project.model}
+              </span>
+            )}
           </div>
         </div>
         <button
           type="button"
-          onClick={() => void onDelete(project.id)}
-          className="shrink-0 rounded-md p-1.5 text-muted-foreground transition-colors hover:bg-destructive/10 hover:text-destructive"
+          onClick={() => onDelete(project.id)}
+          disabled={deleting}
+          className="rounded-md p-1.5 text-slate-400 transition-colors hover:bg-red-50 hover:text-red-600 disabled:cursor-wait"
           aria-label="Delete project"
         >
-          <Trash2 className="h-4 w-4" />
+          {deleting ? <Loader2 className="h-4 w-4 animate-spin" /> : <Trash2 className="h-4 w-4" />}
         </button>
       </div>
 
-      <p className="mt-2 font-mono text-[11px] text-muted-foreground">{project.model || "—"}</p>
-
-      <p className="mt-auto inline-flex items-center gap-1 pt-4 text-xs text-muted-foreground">
+      <p className="mt-4 flex items-center gap-1.5 text-xs text-slate-500">
         <Clock className="h-3.5 w-3.5" />
-        {formatDistanceToNow(new Date(project.updated_at), { addSuffix: true })}
+        Updated {formatDistanceToNow(new Date(project.updated_at), { addSuffix: true })}
       </p>
 
-      <div className="mt-3 flex gap-2">
-        <Button variant="outline" size="sm" className="flex-1" onClick={() => void onDownload(project)} disabled={!project.files}>
-          <Download className="mr-1.5 h-3.5 w-3.5" /> ZIP
+      <div className="mt-4 flex gap-2">
+        <Button type="button" size="sm" className="flex-1" onClick={() => onEdit(project)}>
+          <Pencil className="h-4 w-4" />
+          Edit
         </Button>
-        <Button variant="outline" size="sm" className="flex-1" onClick={openPreview} disabled={!project.files?.html}>
-          <ExternalLink className="mr-1.5 h-3.5 w-3.5" /> Preview
+        <Button
+          type="button"
+          size="sm"
+          variant="outline"
+          onClick={() => void onPreview(project)}
+          disabled={previewing}
+        >
+          {previewing ? (
+            <Loader2 className="h-4 w-4 animate-spin" />
+          ) : (
+            <ExternalLink className="h-4 w-4" />
+          )}
+        </Button>
+        <Button
+          type="button"
+          size="sm"
+          variant="outline"
+          onClick={() => void onDownload(project)}
+          disabled={downloading}
+        >
+          {downloading ? (
+            <Loader2 className="h-4 w-4 animate-spin" />
+          ) : (
+            <Download className="h-4 w-4" />
+          )}
         </Button>
       </div>
     </article>
   );
 }
 
-// ─── Images tab ───────────────────────────────────────────────────────────────
-
-function ImagesTab({
-  images, uploadRef, imagePrompt, imageSize, genQuality,
-  generatingImage, uploadingImage, deletingImagePath, copied,
-  onPromptChange, onSizeChange, onQualityChange,
-  onGenerate, onUpload, onDelete, onCopyUrl,
+function ProjectRow({
+  project,
+  action,
+  onEdit,
+  onDownload,
 }: {
-  images: StoredImage[] | null;
-  uploadRef: React.RefObject<HTMLInputElement | null>;
-  imagePrompt: string;
-  imageSize: "1024x1024" | "1536x1024" | "1024x1536";
-  genQuality: "standard" | "hd";
-  generatingImage: boolean;
-  uploadingImage: boolean;
-  deletingImagePath: string | null;
-  copied: string | null;
-  onPromptChange: (v: string) => void;
-  onSizeChange: (v: "1024x1024" | "1536x1024" | "1024x1536") => void;
-  onQualityChange: (v: "standard" | "hd") => void;
-  onGenerate: () => void;
-  onUpload: (files: FileList | null) => void;
-  onDelete: (img: StoredImage) => void;
-  onCopyUrl: (url: string) => void;
+  project: AiProject;
+  action: ProjectAction | null;
+  onEdit: (project: AiProject) => void;
+  onDownload: (project: AiProject) => void;
 }) {
+  const downloading = action?.type === "download" && action.id === project.id;
   return (
-    <div className="space-y-8">
-      {/* Info banner */}
-      <div className="rounded-xl border border-border bg-card p-4 text-sm text-muted-foreground">
-        Images saved here get a permanent public URL you can paste into any website or give to the AI generator — they'll keep working in your exported code.
-        <br />
-        <span className="mt-1 block text-xs opacity-70">Requires a public Supabase Storage bucket named <code className="rounded bg-muted px-1 py-0.5 font-mono text-[11px]">user-images</code> in your project.</span>
+    <div className="flex flex-col gap-3 rounded-lg border border-slate-200 p-3 sm:flex-row sm:items-center sm:justify-between">
+      <div className="min-w-0">
+        <p className="truncate text-sm font-medium">{project.title}</p>
+        <p className="mt-1 text-xs capitalize text-slate-500">{project.kind}</p>
       </div>
-
-      {/* Upload + Generate */}
-      <div className="grid grid-cols-1 gap-6 md:grid-cols-2">
-
-        {/* Upload */}
-        <div className="rounded-xl border border-border bg-card p-5">
-          <h3 className="mb-1 font-semibold">Upload image</h3>
-          <p className="mb-4 text-sm text-muted-foreground">PNG, JPG, WebP or GIF · Saved to your library with a permanent URL.</p>
-          <button
-            type="button"
-            onClick={() => uploadRef.current?.click()}
-            disabled={uploadingImage}
-            className="flex w-full flex-col items-center justify-center gap-3 rounded-xl border-2 border-dashed border-border py-10 text-muted-foreground transition-colors hover:border-primary/50 hover:text-foreground disabled:opacity-50"
-          >
-            {uploadingImage ? (
-              <><Loader2 className="h-7 w-7 animate-spin text-primary" /><span className="text-sm">Uploading…</span></>
-            ) : (
-              <><Upload className="h-7 w-7" /><span className="text-sm font-medium">Click to upload</span></>
-            )}
-          </button>
-        </div>
-
-        {/* AI Generate */}
-        <div className="rounded-xl border border-border bg-card p-5">
-          <h3 className="mb-1 font-semibold">Generate with AI</h3>
-          <p className="mb-4 text-sm text-muted-foreground">Describe an image and the AI will create it using gpt-image-2. It's automatically saved to your library.</p>
-          <div className="space-y-3">
-            <Textarea
-              value={imagePrompt}
-              onChange={(e) => onPromptChange(e.target.value)}
-              placeholder="e.g. Minimalist product photo of a glass perfume bottle on white marble, soft lighting, high-end editorial style"
-              rows={3}
-              className="resize-none text-sm"
-              disabled={generatingImage}
-            />
-            <div className="flex gap-2">
-              <Select value={imageSize} onValueChange={(v) => onSizeChange(v as typeof imageSize)}>
-                <SelectTrigger className="h-9 flex-1 text-xs"><SelectValue /></SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="1024x1024">Square (1:1)</SelectItem>
-                  <SelectItem value="1536x1024">Landscape (3:2)</SelectItem>
-                  <SelectItem value="1024x1536">Portrait (2:3)</SelectItem>
-                </SelectContent>
-              </Select>
-              <Select value={genQuality} onValueChange={(v) => onQualityChange(v as typeof genQuality)}>
-                <SelectTrigger className="h-9 w-28 text-xs"><SelectValue /></SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="standard">Standard</SelectItem>
-                  <SelectItem value="hd">HD</SelectItem>
-                </SelectContent>
-              </Select>
-            </div>
-            <Button
-              type="button"
-              className="w-full gap-2"
-              disabled={generatingImage || !imagePrompt.trim()}
-              onClick={onGenerate}
-            >
-              {generatingImage ? (
-                <><Loader2 className="h-4 w-4 animate-spin" /> Generating…</>
-              ) : (
-                <><Sparkles className="h-4 w-4" /> Generate image</>
-              )}
-            </Button>
-          </div>
-        </div>
-      </div>
-
-      {/* Image gallery */}
-      <div>
-        <h3 className="mb-4 text-sm font-semibold uppercase tracking-wider text-muted-foreground">Your image library</h3>
-        {images === null ? (
-          <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-4">
-            {Array.from({ length: 8 }).map((_, i) => (
-              <div key={i} className="aspect-square animate-pulse rounded-xl bg-muted" />
-            ))}
-          </div>
-        ) : images.length === 0 ? (
-          <div className="rounded-xl border border-dashed border-border p-12 text-center">
-            <ImageIcon className="mx-auto h-8 w-8 text-muted-foreground" />
-            <p className="mt-3 font-semibold">No images yet</p>
-            <p className="mt-1 text-sm text-muted-foreground">Upload or generate your first image above.</p>
-          </div>
-        ) : (
-          <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-4">
-            {images.map((img) => (
-              <div key={img.path} className="group relative overflow-hidden rounded-xl border border-border bg-muted aspect-square">
-                <img src={img.url} alt={img.name} className="h-full w-full object-cover" loading="lazy" />
-                <div className="absolute inset-0 flex flex-col justify-between bg-black/0 p-2 opacity-0 transition-all group-hover:bg-black/60 group-hover:opacity-100">
-                  <div className="flex justify-end">
-                    <button
-                      type="button"
-                      onClick={() => void onDelete(img)}
-                      disabled={deletingImagePath === img.path}
-                      className="rounded-lg bg-black/50 p-1.5 text-white transition-colors hover:bg-red-500/80"
-                    >
-                      {deletingImagePath === img.path ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Trash2 className="h-3.5 w-3.5" />}
-                    </button>
-                  </div>
-                  <div className="space-y-1.5">
-                    <p className="truncate text-[11px] text-white/80">{img.name}</p>
-                    <button
-                      type="button"
-                      onClick={() => void onCopyUrl(img.url)}
-                      className="flex w-full items-center justify-center gap-1.5 rounded-lg bg-white/20 py-1.5 text-xs font-medium text-white backdrop-blur-sm transition-colors hover:bg-white/30"
-                    >
-                      {copied === img.url ? <><Check className="h-3.5 w-3.5" /> Copied!</> : <><Copy className="h-3.5 w-3.5" /> Copy URL</>}
-                    </button>
-                  </div>
-                </div>
-              </div>
-            ))}
-          </div>
-        )}
+      <div className="flex gap-2">
+        <Button type="button" size="sm" onClick={() => onEdit(project)}>
+          Edit
+        </Button>
+        <Button
+          type="button"
+          size="sm"
+          variant="outline"
+          onClick={() => void onDownload(project)}
+          disabled={downloading}
+        >
+          {downloading ? (
+            <Loader2 className="h-4 w-4 animate-spin" />
+          ) : (
+            <Download className="h-4 w-4" />
+          )}
+        </Button>
       </div>
     </div>
   );
 }
 
-// ─── Settings tab ─────────────────────────────────────────────────────────────
-
-function SettingsTab({
-  user, settings, onSave, onSignOut,
+function ImagesTab({
+  images,
+  loaded,
+  loading,
+  error,
+  imagePrompt,
+  imageSize,
+  imageQuality,
+  generatingImage,
+  uploadingImage,
+  deletingImagePath,
+  copiedUrl,
+  onPrompt,
+  onSize,
+  onQuality,
+  onUploadClick,
+  onGenerate,
+  onRetry,
+  onDelete,
+  onCopy,
 }: {
-  user: ReturnType<typeof useAuth>["user"];
-  settings: AppSettings;
-  onSave: (patch: Partial<AppSettings>) => void;
-  onSignOut: () => void;
+  images: StoredImage[];
+  loaded: boolean;
+  loading: boolean;
+  error: string | null;
+  imagePrompt: string;
+  imageSize: ImageSize;
+  imageQuality: ImageQuality;
+  generatingImage: boolean;
+  uploadingImage: boolean;
+  deletingImagePath: string | null;
+  copiedUrl: string | null;
+  onPrompt: (value: string) => void;
+  onSize: (value: ImageSize) => void;
+  onQuality: (value: ImageQuality) => void;
+  onUploadClick: () => void;
+  onGenerate: () => void;
+  onRetry: () => void;
+  onDelete: (image: StoredImage) => void;
+  onCopy: (url: string) => void;
 }) {
-  const [displayName, setDisplayName] = useState(settings.displayName);
+  const visible = images.slice(0, MAX_RENDERED_IMAGES);
 
   return (
-    <div className="max-w-2xl space-y-8">
-
-      {/* Account */}
-      <section className="rounded-xl border border-border bg-card p-6">
-        <h2 className="mb-4 font-semibold">Account</h2>
-        <div className="space-y-4">
-          <div>
-            <label className="mb-1.5 block text-sm font-medium text-muted-foreground">Email</label>
-            <Input value={user?.email ?? "—"} disabled className="bg-muted/40" />
+    <div className="space-y-5">
+      <div className="grid gap-5 xl:grid-cols-[0.85fr_1.15fr]">
+        <section className="rounded-lg border border-slate-200 bg-white p-4 shadow-sm sm:p-5">
+          <h2 className="font-semibold">Generate image</h2>
+          <p className="mt-1 text-sm text-slate-500">
+            Creates a PNG with gpt-image-2 and saves it to your library.
+          </p>
+          <div className="mt-4 space-y-3">
+            <Textarea
+              value={imagePrompt}
+              onChange={(event) => onPrompt(event.target.value)}
+              placeholder="Minimal product photo on white marble, soft light"
+              rows={4}
+              disabled={generatingImage}
+            />
+            <div className="grid gap-3 sm:grid-cols-2">
+              <select
+                value={imageSize}
+                onChange={(event) => onSize(event.target.value as ImageSize)}
+                className="h-9 rounded-md border border-slate-200 bg-white px-3 text-sm outline-none focus:ring-1 focus:ring-slate-400"
+              >
+                <option value="1024x1024">Square</option>
+                <option value="1536x1024">Landscape</option>
+                <option value="1024x1536">Portrait</option>
+              </select>
+              <select
+                value={imageQuality}
+                onChange={(event) => onQuality(event.target.value as ImageQuality)}
+                className="h-9 rounded-md border border-slate-200 bg-white px-3 text-sm outline-none focus:ring-1 focus:ring-slate-400"
+              >
+                <option value="low">Low quality</option>
+                <option value="medium">Medium quality</option>
+                <option value="high">High quality</option>
+              </select>
+            </div>
+            <Button
+              type="button"
+              className="w-full"
+              onClick={onGenerate}
+              disabled={generatingImage || !imagePrompt.trim()}
+            >
+              {generatingImage ? (
+                <Loader2 className="h-4 w-4 animate-spin" />
+              ) : (
+                <Sparkles className="h-4 w-4" />
+              )}
+              {generatingImage ? "Generating..." : "Generate image"}
+            </Button>
           </div>
-          <div>
-            <label className="mb-1.5 block text-sm font-medium text-muted-foreground">Display name</label>
+        </section>
+
+        <section className="rounded-lg border border-slate-200 bg-white p-4 shadow-sm sm:p-5">
+          <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+            <div>
+              <h2 className="font-semibold">Image library</h2>
+              <p className="mt-1 text-sm text-slate-500">
+                {loaded ? `${images.length} saved images` : "Loading your saved images"}
+              </p>
+            </div>
             <div className="flex gap-2">
-              <Input
-                value={displayName}
-                onChange={(e) => setDisplayName(e.target.value)}
-                placeholder="Your name or workspace name"
-              />
               <Button
                 type="button"
                 variant="outline"
-                onClick={() => onSave({ displayName })}
-                disabled={displayName === settings.displayName}
+                onClick={onUploadClick}
+                disabled={uploadingImage}
               >
-                Save
+                {uploadingImage ? (
+                  <Loader2 className="h-4 w-4 animate-spin" />
+                ) : (
+                  <Upload className="h-4 w-4" />
+                )}
+                Upload
+              </Button>
+              <Button type="button" variant="outline" onClick={onRetry} disabled={loading}>
+                {loading ? (
+                  <Loader2 className="h-4 w-4 animate-spin" />
+                ) : (
+                  <RefreshCw className="h-4 w-4" />
+                )}
+                Refresh
               </Button>
             </div>
-            <p className="mt-1.5 text-xs text-muted-foreground">Shown at the top of your dashboard.</p>
           </div>
+          <p className="mt-3 text-xs text-slate-500">
+            Files are loaded lazily and capped on screen so opening this tab does not freeze the
+            dashboard.
+          </p>
+        </section>
+      </div>
+
+      {error ? (
+        <ErrorState title="Image library could not load" body={error} onRetry={onRetry} />
+      ) : loading && !loaded ? (
+        <ImageSkeleton />
+      ) : images.length === 0 ? (
+        <EmptyState
+          Icon={ImageIcon}
+          title="No images yet"
+          body="Upload or generate your first image above."
+        />
+      ) : (
+        <>
+          <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-4 2xl:grid-cols-6">
+            {visible.map((image) => (
+              <ImageTile
+                key={image.path}
+                image={image}
+                deleting={deletingImagePath === image.path}
+                copied={copiedUrl === image.url}
+                onDelete={onDelete}
+                onCopy={onCopy}
+              />
+            ))}
+          </div>
+          {images.length > visible.length && (
+            <p className="text-sm text-slate-500">
+              Showing the latest {visible.length} images. Use refresh after deleting or uploading.
+            </p>
+          )}
+        </>
+      )}
+    </div>
+  );
+}
+
+function ImageTile({
+  image,
+  deleting,
+  copied,
+  onDelete,
+  onCopy,
+}: {
+  image: StoredImage;
+  deleting: boolean;
+  copied: boolean;
+  onDelete: (image: StoredImage) => void;
+  onCopy: (url: string) => void;
+}) {
+  return (
+    <article
+      className="overflow-hidden rounded-lg border border-slate-200 bg-white shadow-sm"
+      style={{ contentVisibility: "auto" }}
+    >
+      <div className="aspect-square bg-slate-100">
+        <img
+          src={image.url}
+          alt={image.name}
+          loading="lazy"
+          decoding="async"
+          className="h-full w-full object-cover"
+        />
+      </div>
+      <div className="space-y-2 p-2.5">
+        <p className="truncate text-xs text-slate-500" title={image.name}>
+          {image.name}
+        </p>
+        <div className="flex gap-2">
+          <Button
+            type="button"
+            size="sm"
+            variant="outline"
+            className="flex-1"
+            onClick={() => void onCopy(image.url)}
+          >
+            {copied ? <Check className="h-4 w-4" /> : <Copy className="h-4 w-4" />}
+          </Button>
+          <Button
+            type="button"
+            size="sm"
+            variant="outline"
+            onClick={() => onDelete(image)}
+            disabled={deleting}
+          >
+            {deleting ? (
+              <Loader2 className="h-4 w-4 animate-spin" />
+            ) : (
+              <Trash2 className="h-4 w-4" />
+            )}
+          </Button>
+        </div>
+      </div>
+    </article>
+  );
+}
+
+function SettingsTab({
+  user,
+  profile,
+  settings,
+  onSave,
+  onSignOut,
+}: {
+  user: ReturnType<typeof useAuth>["user"];
+  profile: { full_name: string | null; avatar_url: string | null } | null;
+  settings: AppSettings;
+  onSave: (patch: Partial<AppSettings>) => Promise<void>;
+  onSignOut: () => void;
+}) {
+  const [displayName, setDisplayName] = useState(settings.displayName);
+  const [savingName, setSavingName] = useState(false);
+  const [newPassword, setNewPassword] = useState("");
+  const [confirmPassword, setConfirmPassword] = useState("");
+  const [changingPassword, setChangingPassword] = useState(false);
+
+  useEffect(() => {
+    setDisplayName(settings.displayName);
+  }, [settings.displayName]);
+
+  async function saveName() {
+    setSavingName(true);
+    try {
+      await onSave({ displayName });
+    } finally {
+      setSavingName(false);
+    }
+  }
+
+  async function changePassword() {
+    if (newPassword.length < 6) {
+      toast.error("Password must be at least 6 characters");
+      return;
+    }
+    if (newPassword !== confirmPassword) {
+      toast.error("Passwords do not match");
+      return;
+    }
+
+    setChangingPassword(true);
+    try {
+      const { error } = await supabase.auth.updateUser({ password: newPassword });
+      if (error) throw error;
+      toast.success("Password updated");
+      setNewPassword("");
+      setConfirmPassword("");
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : "Password update failed");
+    } finally {
+      setChangingPassword(false);
+    }
+  }
+
+  const avatarLetter = (settings.displayName || user?.email || "?").charAt(0).toUpperCase();
+
+  return (
+    <div className="max-w-3xl space-y-5">
+      <section className="rounded-lg border border-slate-200 bg-white p-5 shadow-sm">
+        <h2 className="font-semibold">Profile</h2>
+        <div className="mt-4 flex items-center gap-3">
+          {profile?.avatar_url ? (
+            <img src={profile.avatar_url} alt="" className="h-12 w-12 rounded-full object-cover" />
+          ) : (
+            <div className="flex h-12 w-12 items-center justify-center rounded-full bg-slate-950 font-semibold text-white">
+              {avatarLetter}
+            </div>
+          )}
+          <div className="min-w-0">
+            <p className="truncate font-medium">
+              {settings.displayName || user?.email?.split("@")[0]}
+            </p>
+            <p className="truncate text-sm text-slate-500">{user?.email}</p>
+          </div>
+        </div>
+
+        <div className="mt-5 grid gap-3 sm:grid-cols-[1fr_auto]">
+          <Input
+            value={displayName}
+            onChange={(event) => setDisplayName(event.target.value)}
+            placeholder="Display name"
+          />
+          <Button
+            type="button"
+            onClick={() => void saveName()}
+            disabled={savingName || displayName === settings.displayName}
+          >
+            {savingName ? <Loader2 className="h-4 w-4 animate-spin" /> : "Save name"}
+          </Button>
         </div>
       </section>
 
-      {/* AI model preference */}
-      <section className="rounded-xl border border-border bg-card p-6">
-        <h2 className="mb-1 font-semibold">AI model preference</h2>
-        <p className="mb-5 text-sm text-muted-foreground">This sets the default model in the AI Generator. You can still change it per project.</p>
-        <div className="grid grid-cols-2 gap-3">
-          {SETTINGS_MODELS.map((m) => (
+      <section className="rounded-lg border border-slate-200 bg-white p-5 shadow-sm">
+        <h2 className="font-semibold">Change password</h2>
+        <div className="mt-4 grid gap-3">
+          <Input
+            type="password"
+            value={newPassword}
+            onChange={(event) => setNewPassword(event.target.value)}
+            placeholder="New password"
+            autoComplete="new-password"
+          />
+          <Input
+            type="password"
+            value={confirmPassword}
+            onChange={(event) => setConfirmPassword(event.target.value)}
+            placeholder="Confirm new password"
+            autoComplete="new-password"
+          />
+          <Button
+            type="button"
+            variant="outline"
+            className="w-fit"
+            onClick={() => void changePassword()}
+            disabled={changingPassword || !newPassword || !confirmPassword}
+          >
+            {changingPassword ? <Loader2 className="h-4 w-4 animate-spin" /> : "Update password"}
+          </Button>
+        </div>
+      </section>
+
+      <section className="rounded-lg border border-slate-200 bg-white p-5 shadow-sm">
+        <h2 className="font-semibold">AI model preference</h2>
+        <div className="mt-4 grid gap-3 sm:grid-cols-2">
+          {SETTINGS_MODELS.map((model) => (
             <button
-              key={m.id}
+              key={model.id}
               type="button"
-              onClick={() => onSave({ preferredModel: m.id })}
+              onClick={() => void onSave({ preferredModel: model.id })}
               className={[
-                "rounded-xl border p-4 text-left transition-all",
-                settings.preferredModel === m.id
-                  ? "border-primary bg-primary/5 ring-1 ring-primary"
-                  : "border-border hover:border-muted-foreground/40",
+                "rounded-lg border p-4 text-left transition-colors",
+                settings.preferredModel === model.id
+                  ? "border-slate-950 bg-slate-950 text-white"
+                  : "border-slate-200 bg-white hover:border-slate-400",
               ].join(" ")}
             >
               <div className="flex items-center justify-between gap-2">
-                <span className="font-semibold text-sm">{m.label}</span>
-                <span className={[
-                  "rounded-full px-2 py-0.5 text-[10px] font-semibold",
-                  m.badge === "Latest" ? "bg-blue-500/15 text-blue-600" :
-                  m.badge === "Popular" ? "bg-green-500/15 text-green-600" :
-                  m.badge === "Default" ? "bg-primary/15 text-primary" :
-                  "bg-muted text-muted-foreground",
-                ].join(" ")}>{m.badge}</span>
+                <span className="font-medium">{model.label}</span>
+                <span
+                  className={
+                    settings.preferredModel === model.id
+                      ? "text-xs text-white/70"
+                      : "text-xs text-slate-500"
+                  }
+                >
+                  {model.badge}
+                </span>
               </div>
-              <p className="mt-1 text-xs text-muted-foreground">{m.note}</p>
-              {settings.preferredModel === m.id && (
-                <div className="mt-2 flex items-center gap-1 text-[11px] text-primary font-medium">
-                  <Check className="h-3 w-3" /> Selected
-                </div>
-              )}
+              <p
+                className={
+                  settings.preferredModel === model.id
+                    ? "mt-2 text-sm text-white/70"
+                    : "mt-2 text-sm text-slate-500"
+                }
+              >
+                {model.note}
+              </p>
             </button>
           ))}
         </div>
-        <p className="mt-4 text-xs text-muted-foreground">
-          Models are powered by OpenAI. GPT-5.5 gives the best output for complex sites. GPT-5.4 Mini is the balanced default. GPT-5.4 Nano is the fastest and most affordable.
-        </p>
       </section>
 
-      {/* Danger zone */}
-      <section className="rounded-xl border border-destructive/30 bg-card p-6">
-        <h2 className="mb-1 font-semibold text-destructive">Sign out</h2>
-        <p className="mb-4 text-sm text-muted-foreground">Your projects and images stay saved in your account.</p>
-        <Button variant="outline" className="gap-2 border-destructive/30 text-destructive hover:bg-destructive/10" onClick={onSignOut}>
-          <LogOut className="h-4 w-4" /> Sign out
+      <section className="rounded-lg border border-red-200 bg-white p-5 shadow-sm">
+        <h2 className="font-semibold text-red-700">Sign out</h2>
+        <p className="mt-1 text-sm text-slate-500">Sign out from this device.</p>
+        <Button type="button" variant="destructive" className="mt-4" onClick={onSignOut}>
+          <LogOut className="h-4 w-4" />
+          Sign out
         </Button>
       </section>
+    </div>
+  );
+}
+
+function EmptyState({
+  Icon,
+  title,
+  body,
+  action,
+}: {
+  Icon: ElementType;
+  title: string;
+  body: string;
+  action?: React.ReactNode;
+}) {
+  return (
+    <div className="rounded-lg border border-dashed border-slate-300 bg-white p-10 text-center">
+      <Icon className="mx-auto h-10 w-10 text-slate-300" />
+      <h2 className="mt-3 font-semibold">{title}</h2>
+      <p className="mx-auto mt-1 max-w-sm text-sm text-slate-500">{body}</p>
+      {action && <div className="mt-5">{action}</div>}
+    </div>
+  );
+}
+
+function ErrorState({
+  title,
+  body,
+  onRetry,
+}: {
+  title: string;
+  body: string;
+  onRetry: () => void;
+}) {
+  return (
+    <div className="rounded-lg border border-red-200 bg-red-50 p-5">
+      <h2 className="font-semibold text-red-700">{title}</h2>
+      <p className="mt-1 text-sm text-red-700/80">{body}</p>
+      <Button type="button" variant="outline" className="mt-4 bg-white" onClick={onRetry}>
+        Try again
+      </Button>
+    </div>
+  );
+}
+
+function SkeletonCards() {
+  return (
+    <div className="grid gap-3 md:grid-cols-2 2xl:grid-cols-3">
+      {Array.from({ length: 6 }).map((_, index) => (
+        <div key={index} className="h-44 animate-pulse rounded-lg bg-slate-100" />
+      ))}
+    </div>
+  );
+}
+
+function SkeletonRows() {
+  return (
+    <div className="space-y-2">
+      {Array.from({ length: 4 }).map((_, index) => (
+        <div key={index} className="h-14 animate-pulse rounded-lg bg-slate-100" />
+      ))}
+    </div>
+  );
+}
+
+function ImageSkeleton() {
+  return (
+    <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-4 2xl:grid-cols-6">
+      {Array.from({ length: 12 }).map((_, index) => (
+        <div key={index} className="aspect-square animate-pulse rounded-lg bg-slate-100" />
+      ))}
     </div>
   );
 }

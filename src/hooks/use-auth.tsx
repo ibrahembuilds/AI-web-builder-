@@ -40,7 +40,9 @@ export function useAuth() {
     }, 8000);
 
     // Subscribe first so we don't miss rapid sign-in events
-    const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, s) => {
+    const {
+      data: { subscription },
+    } = supabase.auth.onAuthStateChange((_event, s) => {
       if (!settled) settle(s);
       else applySession(s);
     });

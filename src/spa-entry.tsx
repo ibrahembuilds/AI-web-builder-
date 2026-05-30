@@ -36,4 +36,4 @@ window.setTimeout(() => {
   if (!loader) return;
   loader.style.opacity = "0";
   window.setTimeout(() => loader.remove(), 180);
-}, 1200);
+}, 250);

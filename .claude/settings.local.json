@@ -1,8 +1,0 @@
-{
-  "permissions": {
-    "allow": [
-      "Bash(del \"src\\\\routes\\\\templates.tsx\")",
-      "Bash(del \"src\\\\routes\\\\about.tsx\")"
-    ]
-  }
-}

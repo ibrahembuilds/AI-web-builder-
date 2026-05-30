@@ -1,66 +1,31 @@
-# kanyoai OpenAI API Setup
+# AI Provider Setup
 
-Do not put your OpenAI API key in the Hostinger files, `src`, `.env`, or any `VITE_` / `NEXT_PUBLIC_` variable. Those files are public in the browser.
+Do not put AI provider keys in frontend code, `VITE_` variables, `NEXT_PUBLIC_` variables, or committed env files. Use server-side environment variables only.
 
-The kanyoai AI builder reads the key from the Supabase Edge Function secret named `OPENAI_API_KEY`.
-
-## Put The Key In Supabase
-
-Use one of these methods.
-
-### Supabase Dashboard
-
-1. Open your Supabase project.
-2. Go to Edge Functions.
-3. Open Secrets.
-4. Add this secret:
+This app's Vercel API routes read these optional server-side keys:
 
 ```text
 OPENAI_API_KEY=your_openai_key_here
+XAI_API_KEY=your_xai_key_here
+DEEPSEEK_API_KEY=your_deepseek_key_here
 ```
 
-5. Deploy or redeploy the `ai-generate-site` function.
+For production, add the keys in the Vercel project environment settings.
 
-### Supabase CLI
+For local development, put them in `.env.local`, which is ignored by git.
+
+## Supabase Edge Function Legacy Setup
+
+If you also run the older Supabase Edge Function flow, store the OpenAI key as a Supabase secret:
 
 ```bash
-npx supabase secrets set OPENAI_API_KEY="your_openai_key_here" --project-ref kuyjkbbbmsbtvsrjkrbi
-npx supabase functions deploy ai-generate-site --project-ref kuyjkbbbmsbtvsrjkrbi
+npx supabase secrets set OPENAI_API_KEY="your_openai_key_here" --project-ref your-project-ref
+npx supabase functions deploy ai-generate-site --project-ref your-project-ref
 ```
 
 Optional model defaults:
 
 ```bash
-npx supabase secrets set OPENAI_MODEL="gpt-5-mini" --project-ref kuyjkbbbmsbtvsrjkrbi
-npx supabase secrets set OPENAI_MAX_OUTPUT_TOKENS="12000" --project-ref kuyjkbbbmsbtvsrjkrbi
+npx supabase secrets set OPENAI_MODEL="gpt-5-mini" --project-ref your-project-ref
+npx supabase secrets set OPENAI_MAX_OUTPUT_TOKENS="12000" --project-ref your-project-ref
 ```
-
-## Local Testing
-
-For local Supabase function testing only, create a local file that is not committed:
-
-```text
-supabase/.env.local
-```
-
-Example:
-
-```text
-OPENAI_API_KEY=your_openai_key_here
-OPENAI_MODEL=gpt-5-mini
-OPENAI_MAX_OUTPUT_TOKENS=12000
-```
-
-Then run:
-
-```bash
-npx supabase functions serve ai-generate-site --env-file supabase/.env.local
-```
-
-The frontend calls:
-
-```text
-https://kuyjkbbbmsbtvsrjkrbi.supabase.co/functions/v1/ai-generate-site
-```
-
-So on Hostinger, the static site does not need the OpenAI key. Hostinger only serves the frontend; Supabase safely calls OpenAI from the server side.

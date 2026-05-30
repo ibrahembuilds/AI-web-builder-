@@ -4,12 +4,51 @@ import {
   Link,
   createRootRouteWithContext,
   useRouter,
+  useRouterState,
   HeadContent,
   Scripts,
 } from "@tanstack/react-router";
+import { useEffect, useRef, useState } from "react";
 
 import appCss from "../styles.css?url";
 import { Toaster } from "@/components/ui/sonner";
+
+function RouteProgressBar() {
+  const pending = useRouterState({ select: (s) => s.status === "pending" });
+  const [width, setWidth] = useState(0);
+  const [opacity, setOpacity] = useState(0);
+  const t = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  useEffect(() => {
+    if (t.current) clearTimeout(t.current);
+    if (pending) {
+      setOpacity(1);
+      setWidth(0);
+      t.current = setTimeout(() => setWidth(80), 30);
+    } else {
+      setWidth(100);
+      t.current = setTimeout(() => setOpacity(0), 350);
+    }
+    return () => {
+      if (t.current) clearTimeout(t.current);
+    };
+  }, [pending]);
+
+  return (
+    <div className="pointer-events-none fixed left-0 top-0 z-[9999] h-[2px] w-full overflow-hidden">
+      <div
+        className="h-full bg-gradient-to-r from-violet-500 via-blue-400 to-cyan-400"
+        style={{
+          width: `${width}%`,
+          opacity,
+          transition: pending
+            ? "width 12s cubic-bezier(0.08, 0.92, 0.2, 1), opacity 0.15s"
+            : "width 0.25s ease-out, opacity 0.35s 0.25s",
+        }}
+      />
+    </div>
+  );
+}
 
 function NotFoundComponent() {
   return (
@@ -119,6 +158,7 @@ function RootComponent() {
   const { queryClient } = Route.useRouteContext();
   return (
     <QueryClientProvider client={queryClient}>
+      <RouteProgressBar />
       <Outlet />
       <Toaster />
     </QueryClientProvider>

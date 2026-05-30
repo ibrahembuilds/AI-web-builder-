@@ -1,9 +1,11 @@
-import { createFileRoute } from "@tanstack/react-router";
+import { createFileRoute, useNavigate } from "@tanstack/react-router";
 import { useEffect, useMemo, useRef, useState } from "react";
+import { useAuth } from "@/hooks/use-auth";
 import Editor from "react-simple-code-editor";
 import {
   Download,
   FileCode2,
+  Loader2,
   Maximize,
   Maximize2,
   Minimize,
@@ -18,9 +20,10 @@ import {
 import { toast } from "sonner";
 
 import { SiteHeader } from "@/components/site-header";
+import { PageLoadingState } from "@/components/loading-state";
 import { Button } from "@/components/ui/button";
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
-import { exportPlaygroundZip, type ExportProgress } from "@/lib/export-zip";
+import type { ExportProgress } from "@/lib/export-zip";
 import { ExportProgressBar, ExportProgressOverlay } from "@/components/export-progress";
 import { highlight, type Lang } from "@/lib/highlight";
 import { STARTERS, DEFAULT_STARTER } from "@/lib/playground-starters";
@@ -49,8 +52,38 @@ export const Route = createFileRoute("/playground")({
       },
     ],
   }),
-  component: PlaygroundPage,
+  component: PlaygroundRoute,
 });
+
+function PlaygroundRoute() {
+  const { user, loading, isSupabaseConfigured } = useAuth();
+  const navigate = useNavigate();
+
+  useEffect(() => {
+    if (loading || user || !isSupabaseConfigured) return;
+    navigate({ to: "/login", search: { redirect: "/playground" }, replace: true });
+  }, [isSupabaseConfigured, loading, navigate, user]);
+
+  if (loading) {
+    return (
+      <PageLoadingState
+        title="Checking your session"
+        body="Loading your account before opening the playground."
+      />
+    );
+  }
+
+  if (!isSupabaseConfigured || !user) {
+    return (
+      <PageLoadingState
+        title="Redirecting to sign in"
+        body="Sign in is required to use the playground."
+      />
+    );
+  }
+
+  return <PlaygroundPage />;
+}
 
 const STARTER_HTML = DEFAULT_STARTER.html;
 const STARTER_CSS = DEFAULT_STARTER.css;
@@ -60,6 +93,18 @@ const STORAGE_KEY = "kanyoai:playground:v1";
 type Device = "fit" | "desktop" | "tablet" | "mobile";
 const widths: Record<Device, number> = { fit: 0, desktop: 1280, tablet: 768, mobile: 390 };
 
+function composePlaygroundDocument(html: string, css: string, js: string) {
+  let doc = html;
+  const styleTag = `<style>${css}</style>`;
+  const scriptTag = `<script>${js}</script>`;
+  if (/<\/head>/i.test(doc)) doc = doc.replace(/<\/head>/i, `${styleTag}\n</head>`);
+  else doc = styleTag + doc;
+  doc = doc.replace(/<link[^>]+href=["']style\.css["'][^>]*>/gi, "");
+  if (/<\/body>/i.test(doc)) doc = doc.replace(/<\/body>/i, `${scriptTag}\n</body>`);
+  else doc = doc + scriptTag;
+  return doc.replace(/<script[^>]+src=["']script\.js["'][^>]*><\/script>/gi, "");
+}
+
 function PlaygroundPage() {
   const [html, setHtml] = useState(STARTER_HTML);
   const [css, setCss] = useState(STARTER_CSS);
@@ -67,6 +112,11 @@ function PlaygroundPage() {
   const [device, setDevice] = useState<Device>("fit");
   const [autoRun, setAutoRun] = useState(true);
   const [version, setVersion] = useState(0); // forced refresh
+  const [previewSource, setPreviewSource] = useState({
+    html: STARTER_HTML,
+    css: STARTER_CSS,
+    js: STARTER_JS,
+  });
   const previewWrap = useRef<HTMLDivElement>(null);
   const [scale, setScale] = useState(1);
   const [previewHeight, setPreviewHeight] = useState(720);
@@ -161,21 +211,19 @@ function PlaygroundPage() {
     return () => clearTimeout(id);
   }, [html, css, js]);
 
-  const srcDoc = useMemo(() => {
-    // Inline css/js refs into the html for the iframe
-    let doc = html;
-    const styleTag = `<style>${css}</style>`;
-    const scriptTag = `<script>${js}</script>`;
-    if (/<\/head>/i.test(doc)) doc = doc.replace(/<\/head>/i, `${styleTag}\n</head>`);
-    else doc = styleTag + doc;
-    // Strip the file <link rel="stylesheet" href="style.css"> to avoid 404 noise
-    doc = doc.replace(/<link[^>]+href=["']style\.css["'][^>]*>/gi, "");
-    if (/<\/body>/i.test(doc)) doc = doc.replace(/<\/body>/i, `${scriptTag}\n</body>`);
-    else doc = doc + scriptTag;
-    doc = doc.replace(/<script[^>]+src=["']script\.js["'][^>]*><\/script>/gi, "");
-    return doc;
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [html, css, js, version]);
+  useEffect(() => {
+    if (autoRun) setPreviewSource({ html, css, js });
+  }, [autoRun, html, css, js]);
+
+  const srcDoc = useMemo(
+    () => composePlaygroundDocument(previewSource.html, previewSource.css, previewSource.js),
+    [previewSource],
+  );
+
+  function runPreview() {
+    setPreviewSource({ html, css, js });
+    setVersion((v) => v + 1);
+  }
 
   useEffect(() => {
     function update() {
@@ -247,6 +295,7 @@ function PlaygroundPage() {
       failed: 0,
     });
     try {
+      const { exportPlaygroundZip } = await import("@/lib/export-zip");
       const result = await exportPlaygroundZip(
         "kanyoai-playground",
         html,
@@ -268,7 +317,6 @@ function PlaygroundPage() {
       setTimeout(() => setExportProgress(null), 400);
     }
   }
-
 
   return (
     <div className="flex min-h-screen flex-col">
@@ -298,7 +346,7 @@ function PlaygroundPage() {
               Live preview
             </label>
             {!autoRun && (
-              <Button size="sm" variant="outline" onClick={() => setVersion((v) => v + 1)}>
+              <Button size="sm" variant="outline" onClick={runPreview}>
                 <Play className="mr-1.5 h-3.5 w-3.5" /> Run
               </Button>
             )}
@@ -340,7 +388,11 @@ function PlaygroundPage() {
               {fullscreen ? "Exit fullscreen" : "Fullscreen"}
             </Button>
             <Button size="sm" onClick={onExport} disabled={exporting}>
-              <Download className="mr-1.5 h-3.5 w-3.5" />{" "}
+              {exporting ? (
+                <Loader2 className="mr-1.5 h-3.5 w-3.5 animate-spin" />
+              ) : (
+                <Download className="mr-1.5 h-3.5 w-3.5" />
+              )}{" "}
               {exporting ? "Exporting..." : "Export ZIP"}
             </Button>
           </div>
@@ -474,8 +526,8 @@ function PlaygroundPage() {
               >
                 <iframe
                   title="playground-preview"
-                  srcDoc={autoRun ? srcDoc : srcDoc}
-                  key={autoRun ? "auto" : version}
+                  srcDoc={srcDoc}
+                  key={`${autoRun ? "auto" : "manual"}-${version}`}
                   className={
                     device === "fit" ? "h-full w-full border-0" : "absolute left-0 top-0 border-0"
                   }

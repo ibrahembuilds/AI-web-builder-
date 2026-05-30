@@ -1,14 +1,36 @@
 {
-  "name": "kanyoai",
+  "name": "ai-web-builder",
   "private": true,
+  "description": "Open-source AI website builder with custom branding, image generation, and a natural-language edit agent.",
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "git+ssh://git@github.com/hemoyt/AI-web-builder-.git"
+  },
+  "bugs": {
+    "url": "https://github.com/hemoyt/AI-web-builder-/issues"
+  },
+  "homepage": "https://github.com/hemoyt/AI-web-builder-#readme",
+  "keywords": [
+    "ai",
+    "website-builder",
+    "react",
+    "vite",
+    "supabase",
+    "vercel"
+  ],
   "sideEffects": false,
   "type": "module",
+  "engines": {
+    "node": "^20.19.0 || >=22.13.0"
+  },
   "scripts": {
     "dev": "vite dev --config ./vite.static.config.ts",
     "build": "npm run build:static",
     "build:static": "node scripts/build-static.mjs",
     "build:dev": "vite build --config ./vite.static.config.ts --mode development",
     "preview": "vite preview --outDir dist/static",
+    "typecheck": "tsc --noEmit",
     "lint": "eslint .",
     "format": "prettier --write ."
   },
@@ -49,13 +71,18 @@
     "clsx": "^2.1.1",
     "cmdk": "^1.1.1",
     "date-fns": "^4.1.0",
+    "embla-carousel-react": "^8.6.0",
     "framer-motion": "^12.38.0",
+    "input-otp": "^1.4.2",
     "jszip": "^3.10.1",
     "lucide-react": "^0.575.0",
     "react": "^19.2.0",
+    "react-day-picker": "^9.8.0",
     "react-dom": "^19.2.0",
     "react-hook-form": "^7.71.2",
+    "react-resizable-panels": "^4.11.2",
     "react-simple-code-editor": "^0.14.1",
+    "recharts": "^2.15.3",
     "sonner": "^2.0.7",
     "tailwind-merge": "^3.5.0",
     "tailwindcss": "^4.2.1",
