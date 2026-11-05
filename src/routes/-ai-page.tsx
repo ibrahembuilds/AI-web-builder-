@@ -33,6 +33,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { useAuth } from "@/hooks/use-auth";
 import { isSupabaseConfigured, supabase } from "@/integrations/supabase/client";
 import type { Json } from "@/integrations/supabase/types";
+import { openSandboxedPreview, PREVIEW_SANDBOX, PREVIEW_STORAGE_SHIM } from "@/lib/preview";
 
 // ─── types ────────────────────────────────────────────────────────────────────
 
@@ -1000,12 +1001,9 @@ export default function AIPage() {
   }
 
   function openInNewTab() {
-    const html = composePreview(files);
-    const blob = new Blob([html], { type: "text/html" });
-    const url = URL.createObjectURL(blob);
-    const win = window.open(url, "_blank");
-    if (!win) toast.error("Pop-up blocked — allow pop-ups and try again.");
-    setTimeout(() => URL.revokeObjectURL(url), 10000);
+    if (!openSandboxedPreview(composePreview(files), title)) {
+      toast.error("Pop-up blocked — allow pop-ups and try again.");
+    }
   }
 
   function backToBuild() {
@@ -1213,7 +1211,7 @@ export default function AIPage() {
                 <iframe
                   title="preview"
                   srcDoc={previewSrcDoc}
-                  sandbox="allow-scripts allow-same-origin"
+                  sandbox={PREVIEW_SANDBOX}
                   className="absolute inset-0 h-full w-full border-0 bg-white"
                 />
               )}
@@ -1240,7 +1238,7 @@ export default function AIPage() {
                     <iframe
                       title="preview"
                       srcDoc={previewSrcDoc}
-                      sandbox="allow-scripts allow-same-origin"
+                      sandbox={PREVIEW_SANDBOX}
                       className="w-full border-0 bg-white"
                       style={{ height: device === "tablet" ? 900 : 844 }}
                     />
@@ -2390,8 +2388,8 @@ function composePreview(files: SiteFiles) {
   html = html.replace(/<script[^>]+src=["']script\.js["'][^>]*>\s*<\/script>/gi, "");
   // Inject nav guard as the very first script in <head>
   html = /<head>/i.test(html)
-    ? html.replace(/<head>/i, `<head>\n${PREVIEW_NAV_GUARD}`)
-    : `${PREVIEW_NAV_GUARD}\n${html}`;
+    ? html.replace(/<head>/i, `<head>\n${PREVIEW_STORAGE_SHIM}\n${PREVIEW_NAV_GUARD}`)
+    : `${PREVIEW_STORAGE_SHIM}\n${PREVIEW_NAV_GUARD}\n${html}`;
   if (cssTag)
     html = /<\/head>/i.test(html)
       ? html.replace(/<\/head>/i, `${cssTag}\n</head>`)

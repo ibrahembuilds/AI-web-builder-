@@ -28,6 +28,7 @@ import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { useAuth } from "@/hooks/use-auth";
 import { isSupabaseConfigured, supabase } from "@/integrations/supabase/client";
+import { openSandboxedPreview } from "@/lib/preview";
 
 type DashTab = "overview" | "projects" | "images" | "settings";
 type SortKey = "updated_desc" | "updated_asc" | "name_asc" | "name_desc";
@@ -209,11 +210,9 @@ function DashboardPage() {
 
   const loadImages = useCallback(
     async (force = false) => {
-      if (!user?.id || !isSupabaseConfigured) {
-        setImages([]);
-        setImagesLoaded(true);
-        return;
-      }
+      // Auth may still be resolving on first render. Do not mark the library as
+      // loaded until we have actually queried it for a signed-in user.
+      if (!user?.id || !isSupabaseConfigured) return;
       if (imagesLoading && !force) return;
 
       setImagesLoading(true);
@@ -260,10 +259,11 @@ function DashboardPage() {
   }, [loadProjects]);
 
   useEffect(() => {
+    if (!user?.id) return;
     if ((activeTab === "overview" || activeTab === "images") && !imagesLoaded && !imagesLoading) {
       void loadImages();
     }
-  }, [activeTab, imagesLoaded, imagesLoading, loadImages]);
+  }, [activeTab, imagesLoaded, imagesLoading, loadImages, user?.id]);
 
   useEffect(() => {
     if (!user?.id || !isSupabaseConfigured) return;
@@ -355,9 +355,10 @@ function DashboardPage() {
         files.html +
         (files.css ? `<style>${files.css}</style>` : "") +
         (files.js ? `<script>${files.js}</script>` : "");
-      const url = URL.createObjectURL(new Blob([html], { type: "text/html" }));
-      window.open(url, "_blank");
-      window.setTimeout(() => URL.revokeObjectURL(url), 15000);
+      if (!openSandboxedPreview(html, project.title)) {
+        toast.error("Pop-up blocked — allow pop-ups and try again.", { id: toastId });
+        return;
+      }
       toast.success("Preview opened", { id: toastId });
     } catch {
       toast.error("Preview failed", { id: toastId });

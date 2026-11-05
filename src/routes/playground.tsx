@@ -27,6 +27,7 @@ import type { ExportProgress } from "@/lib/export-zip";
 import { ExportProgressBar, ExportProgressOverlay } from "@/components/export-progress";
 import { highlight, type Lang } from "@/lib/highlight";
 import { STARTERS, DEFAULT_STARTER } from "@/lib/playground-starters";
+import { injectIntoHead, PREVIEW_SANDBOX, PREVIEW_STORAGE_SHIM } from "@/lib/preview";
 import {
   DropdownMenu,
   DropdownMenuTrigger,
@@ -102,7 +103,8 @@ function composePlaygroundDocument(html: string, css: string, js: string) {
   doc = doc.replace(/<link[^>]+href=["']style\.css["'][^>]*>/gi, "");
   if (/<\/body>/i.test(doc)) doc = doc.replace(/<\/body>/i, `${scriptTag}\n</body>`);
   else doc = doc + scriptTag;
-  return doc.replace(/<script[^>]+src=["']script\.js["'][^>]*><\/script>/gi, "");
+  doc = doc.replace(/<script[^>]+src=["']script\.js["'][^>]*><\/script>/gi, "");
+  return injectIntoHead(doc, PREVIEW_STORAGE_SHIM);
 }
 
 function PlaygroundPage() {
@@ -541,7 +543,7 @@ function PlaygroundPage() {
                           transformOrigin: "top left",
                         }
                   }
-                  sandbox="allow-same-origin allow-scripts allow-forms"
+                  sandbox={PREVIEW_SANDBOX}
                 />
               </div>
             </div>
