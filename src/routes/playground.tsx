@@ -22,6 +22,7 @@ import { toast } from "sonner";
 import { SiteHeader } from "@/components/site-header";
 import { PageLoadingState } from "@/components/loading-state";
 import { Button } from "@/components/ui/button";
+import { Switch } from "@/components/ui/switch";
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
 import type { ExportProgress } from "@/lib/export-zip";
 import { ExportProgressBar, ExportProgressOverlay } from "@/components/export-progress";
@@ -234,7 +235,7 @@ function PlaygroundPage() {
       const padding = window.innerWidth < 640 ? 16 : 32;
       const availableHeight = Math.max(
         420,
-        fullscreen ? el.clientHeight - padding : window.innerHeight - 180,
+        fullscreen ? el.clientHeight - padding : window.innerHeight - 200,
       );
       if (device === "fit") {
         setScale(1);
@@ -321,41 +322,36 @@ function PlaygroundPage() {
   }
 
   return (
-    <div className="flex min-h-screen flex-col">
+    <div className="flex min-h-screen flex-col bg-background">
       <SiteHeader />
-      <section className="border-b border-border bg-muted/25">
-        <div className="mx-auto flex max-w-7xl flex-col gap-5 px-4 py-8 sm:px-6 md:flex-row md:items-end md:justify-between">
-          <div>
-            <p className="font-mono text-xs uppercase tracking-widest text-muted-foreground">
-              Playground
-            </p>
-            <h1 className="mt-2 font-display text-3xl font-semibold md:text-5xl">
-              Code it. See it. Ship it.
-            </h1>
-            <p className="mt-3 max-w-2xl text-sm leading-6 text-muted-foreground">
-              A simple in-browser editor for HTML, CSS, and JavaScript. Type or upload your files,
-              watch the preview update live, then download a ZIP whenever you&apos;re happy.
+      <section className="border-b border-border bg-card">
+        <div className="flex flex-wrap items-center justify-between gap-3 px-4 py-2.5 sm:px-6">
+          <div className="min-w-0">
+            <h1 className="font-display text-base font-semibold">Playground</h1>
+            <p className="hidden text-xs text-muted-foreground sm:block">
+              Write HTML, CSS, and JavaScript with a live preview. Your code is saved in this
+              browser.
             </p>
           </div>
           <div className="flex flex-wrap items-center gap-2">
-            <label className="inline-flex cursor-pointer items-center gap-2 rounded-md border border-border bg-background px-2.5 py-1 text-xs text-muted-foreground transition-colors hover:text-foreground">
-              <input
-                type="checkbox"
+            <label className="inline-flex h-8 cursor-pointer items-center gap-2 rounded-md border border-border px-2.5 text-xs font-medium text-muted-foreground transition-colors hover:text-foreground">
+              <Switch
                 checked={autoRun}
-                onChange={(e) => setAutoRun(e.target.checked)}
-                className="accent-foreground"
+                onCheckedChange={setAutoRun}
+                aria-label="Live preview"
+                className="scale-90"
               />
-              Live preview
+              Live
             </label>
             {!autoRun && (
               <Button size="sm" variant="outline" onClick={runPreview}>
-                <Play className="mr-1.5 h-3.5 w-3.5" /> Run
+                <Play className="h-3.5 w-3.5" /> Run
               </Button>
             )}
             <DropdownMenu>
               <DropdownMenuTrigger asChild>
                 <Button size="sm" variant="outline">
-                  <Sparkles className="mr-1.5 h-3.5 w-3.5" /> Starters
+                  <Sparkles className="h-3.5 w-3.5" /> Starters
                 </Button>
               </DropdownMenuTrigger>
               <DropdownMenuContent align="end" className="w-64">
@@ -373,34 +369,35 @@ function PlaygroundPage() {
                 ))}
               </DropdownMenuContent>
             </DropdownMenu>
-            <Button size="sm" variant="ghost" onClick={reset}>
-              <RotateCcw className="mr-1.5 h-3.5 w-3.5" /> Reset
+            <Button size="sm" variant="ghost" onClick={reset} title="Reset to the default starter">
+              <RotateCcw className="h-3.5 w-3.5" />
+              <span className="hidden sm:inline">Reset</span>
             </Button>
             <Button
               size="sm"
-              variant="outline"
+              variant="ghost"
               onClick={() => setFullscreen((v) => !v)}
-              title="Toggle fullscreen (Ctrl/Cmd+Shift+J)"
+              title="Focus mode (Ctrl/Cmd+Shift+J)"
+              aria-label={fullscreen ? "Exit focus mode" : "Focus mode"}
             >
               {fullscreen ? (
-                <Minimize className="mr-1.5 h-3.5 w-3.5" />
+                <Minimize className="h-3.5 w-3.5" />
               ) : (
-                <Maximize className="mr-1.5 h-3.5 w-3.5" />
+                <Maximize className="h-3.5 w-3.5" />
               )}
-              {fullscreen ? "Exit fullscreen" : "Fullscreen"}
             </Button>
             <Button size="sm" onClick={onExport} disabled={exporting}>
               {exporting ? (
-                <Loader2 className="mr-1.5 h-3.5 w-3.5 animate-spin" />
+                <Loader2 className="h-3.5 w-3.5 animate-spin" />
               ) : (
-                <Download className="mr-1.5 h-3.5 w-3.5" />
-              )}{" "}
+                <Download className="h-3.5 w-3.5" />
+              )}
               {exporting ? "Exporting..." : "Export ZIP"}
             </Button>
           </div>
         </div>
         {exportProgress && exportProgress.phase !== "done" && (
-          <div className="mx-auto max-w-7xl px-6 pb-4">
+          <div className="px-4 pb-3 sm:px-6">
             <ExportProgressBar progress={exportProgress} />
           </div>
         )}
@@ -435,7 +432,7 @@ function PlaygroundPage() {
                 ? "flex w-full shrink-0 flex-col border-b border-border md:w-1/2 md:border-b-0 md:border-r"
                 : "flex w-full shrink-0 flex-col border-b border-border md:w-[44%] md:border-b-0 md:border-r lg:w-[460px]"
             }
-            style={fullscreen ? undefined : { height: "calc(100vh - 180px)" }}
+            style={fullscreen ? undefined : { height: "calc(100vh - 121px)" }}
           >
             <Tabs defaultValue="html" className="flex h-full min-h-0 flex-col">
               <TabsList className="grid w-full grid-cols-3 rounded-none border-b border-border bg-background">
@@ -519,7 +516,7 @@ function PlaygroundPage() {
                 className="relative origin-top overflow-hidden rounded-lg border border-border bg-background shadow-sm"
                 style={
                   device === "fit"
-                    ? { width: "100%", height: fullscreen ? "100%" : "calc(100vh - 180px)" }
+                    ? { width: "100%", height: fullscreen ? "100%" : "calc(100vh - 200px)" }
                     : {
                         width: Math.round(widths[device] * scale),
                         height: Math.round(previewHeight * scale),

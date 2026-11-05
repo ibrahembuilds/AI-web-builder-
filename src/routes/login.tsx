@@ -12,7 +12,7 @@ import {
   Sparkles,
   User,
 } from "lucide-react";
-import { useEffect, useState } from "react";
+import { cloneElement, isValidElement, useEffect, useId, useState } from "react";
 import { toast } from "sonner";
 
 import { KanyoLogo } from "@/components/kanyo-logo";
@@ -191,7 +191,7 @@ function LoginPage() {
 
             <div className="mt-9 space-y-3">
               {[
-                { icon: Sparkles, text: "AI website generator with 8 visual styles" },
+                { icon: Sparkles, text: "AI website generator with 11 visual styles" },
                 { icon: Code2, text: "Live code playground — HTML, CSS, JS" },
                 { icon: Download, text: "Export clean ZIP — no proprietary runtime" },
               ].map(({ icon: Icon, text }) => (
@@ -268,6 +268,7 @@ function LoginPage() {
                       <button
                         type="button"
                         onClick={() => setShowPw((v) => !v)}
+                        aria-label={showPw ? "Hide password" : "Show password"}
                         className="text-muted-foreground transition-colors hover:text-foreground absolute right-3 top-1/2 -translate-y-1/2"
                       >
                         {showPw ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
@@ -285,7 +286,11 @@ function LoginPage() {
                     />
                   </Field>
 
-                  <Button type="submit" disabled={busy || !isSupabaseConfigured} className="w-full">
+                  <Button
+                    type="submit"
+                    disabled={busy || !isSupabaseConfigured}
+                    className="h-10 w-full"
+                  >
                     {busy ? (
                       <>
                         <Loader2 className="mr-1.5 h-4 w-4 animate-spin" />
@@ -334,6 +339,7 @@ function LoginPage() {
                       <button
                         type="button"
                         onClick={() => setShowPw((v) => !v)}
+                        aria-label={showPw ? "Hide password" : "Show password"}
                         className="text-muted-foreground transition-colors hover:text-foreground absolute right-3 top-1/2 -translate-y-1/2"
                       >
                         {showPw ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
@@ -352,7 +358,7 @@ function LoginPage() {
                     />
                   </Field>
                   <p className="flex items-center gap-1 -mt-2 text-[11px] text-muted-foreground">
-                    <Check className="h-3 w-3 text-green-500" /> Minimum 6 characters
+                    <Check className="h-3 w-3" /> Minimum 6 characters
                   </p>
 
                   <Field
@@ -362,6 +368,7 @@ function LoginPage() {
                       <button
                         type="button"
                         onClick={() => setShowConfirmPw((v) => !v)}
+                        aria-label={showConfirmPw ? "Hide password" : "Show password"}
                         className="text-muted-foreground transition-colors hover:text-foreground absolute right-3 top-1/2 -translate-y-1/2"
                       >
                         {showConfirmPw ? (
@@ -386,7 +393,7 @@ function LoginPage() {
                     <p className="text-[11px] text-destructive -mt-2">Passwords do not match</p>
                   )}
                   {confirmPw && password === confirmPw && password.length >= 6 && (
-                    <p className="flex items-center gap-1 -mt-2 text-[11px] text-green-500">
+                    <p className="flex items-center gap-1 -mt-2 text-[11px] text-emerald-600">
                       <Check className="h-3 w-3" /> Passwords match
                     </p>
                   )}
@@ -396,7 +403,7 @@ function LoginPage() {
                     disabled={
                       busy || !isSupabaseConfigured || (!!confirmPw && password !== confirmPw)
                     }
-                    className="w-full"
+                    className="h-10 w-full"
                   >
                     {busy ? (
                       <>
@@ -410,14 +417,6 @@ function LoginPage() {
                 </form>
               </TabsContent>
             </Tabs>
-
-            <p className="mt-5 text-center text-xs text-muted-foreground">
-              Sign in to use the{" "}
-              <Link to="/playground" className="text-primary hover:underline">
-                Playground
-              </Link>{" "}
-              and keep your work synced.
-            </p>
           </div>
         </div>
       </section>
@@ -436,14 +435,20 @@ function Field({
   children: React.ReactNode;
   action?: React.ReactNode;
 }) {
+  const id = useId();
+  const control = isValidElement<{ id?: string }>(children)
+    ? cloneElement(children, { id })
+    : children;
   return (
     <div className="space-y-1.5">
-      <Label className="text-xs font-medium">{label}</Label>
+      <Label htmlFor={id} className="text-sm font-medium">
+        {label}
+      </Label>
       <div className="relative">
         <span className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground">
           {icon}
         </span>
-        {children}
+        {control}
         {action}
       </div>
     </div>

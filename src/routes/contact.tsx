@@ -80,7 +80,7 @@ function ContactPage() {
             className="relative mx-auto max-w-2xl text-center"
           >
             <motion.div variants={fadeUp} className="mb-6 flex justify-center">
-              <span className="inline-flex items-center gap-2 rounded-full border border-violet-500/30 bg-violet-500/10 px-4 py-1.5 text-xs font-semibold text-violet-300">
+              <span className="inline-flex items-center gap-2 rounded-full border border-blue-400/30 bg-blue-400/10 px-4 py-1.5 text-xs font-semibold text-blue-300">
                 <MessageSquare className="h-3 w-3" />
                 Get in touch
               </span>
@@ -92,9 +92,7 @@ function ContactPage() {
             >
               We'd love to
               <br />
-              <span className="bg-gradient-to-r from-violet-400 via-blue-400 to-cyan-400 bg-clip-text text-transparent">
-                hear from you
-              </span>
+              <span className="text-blue-400">hear from you</span>
             </motion.h1>
 
             <motion.p
@@ -125,9 +123,9 @@ function ContactPage() {
                   </p>
                   <a
                     href={`mailto:${CONTACT_EMAIL}`}
-                    className="group inline-flex items-center gap-2 text-lg font-semibold transition-colors hover:text-violet-600"
+                    className="group inline-flex items-center gap-2 text-lg font-semibold transition-colors hover:text-primary"
                   >
-                    <Mail className="h-5 w-5 text-violet-500" />
+                    <Mail className="h-5 w-5 text-primary" />
                     {CONTACT_EMAIL}
                     <ArrowRight className="h-4 w-4 opacity-0 transition-all group-hover:translate-x-1 group-hover:opacity-100" />
                   </a>
@@ -158,7 +156,7 @@ function ContactPage() {
                       },
                     ].map(({ icon: Icon, label, note }) => (
                       <li key={label} className="flex items-start gap-3 text-sm">
-                        <div className="mt-0.5 flex h-7 w-7 shrink-0 items-center justify-center rounded-lg bg-violet-500/10 text-violet-600">
+                        <div className="mt-0.5 flex h-7 w-7 shrink-0 items-center justify-center rounded-lg bg-primary/10 text-primary">
                           <Icon className="h-3.5 w-3.5" />
                         </div>
                         <div>
@@ -179,7 +177,7 @@ function ContactPage() {
                   <Link
                     to="/login"
                     search={{ redirect: "/ai" }}
-                    className="group inline-flex items-center gap-2 text-sm font-bold text-violet-600 transition-colors hover:text-violet-500"
+                    className="group inline-flex items-center gap-2 text-sm font-bold text-primary transition-colors hover:text-primary/80"
                   >
                     Get started free
                     <ArrowRight className="h-4 w-4 transition-transform group-hover:translate-x-1" />
@@ -195,8 +193,8 @@ function ContactPage() {
                 variants={fadeUp}
               >
                 {sent ? (
-                  <div className="flex h-full min-h-[400px] flex-col items-center justify-center rounded-2xl border border-violet-500/20 bg-violet-500/5 p-10 text-center">
-                    <div className="mb-4 flex h-14 w-14 items-center justify-center rounded-full bg-violet-600/20 text-violet-500">
+                  <div className="flex h-full min-h-[400px] flex-col items-center justify-center rounded-2xl border border-primary/20 bg-primary/5 p-10 text-center">
+                    <div className="mb-4 flex h-14 w-14 items-center justify-center rounded-full bg-primary/15 text-primary">
                       <Send className="h-6 w-6" />
                     </div>
                     <h3 className="mb-2 font-display text-xl font-bold">
@@ -204,10 +202,7 @@ function ContactPage() {
                     </h3>
                     <p className="max-w-xs text-sm text-muted-foreground">
                       If it didn't, you can email us directly at{" "}
-                      <a
-                        href={`mailto:${CONTACT_EMAIL}`}
-                        className="text-violet-600 hover:underline"
-                      >
+                      <a href={`mailto:${CONTACT_EMAIL}`} className="text-primary hover:underline">
                         {CONTACT_EMAIL}
                       </a>
                     </p>
@@ -235,7 +230,7 @@ function ContactPage() {
                           value={name}
                           onChange={(e) => setName(e.target.value)}
                           placeholder="Your name"
-                          className="w-full rounded-lg border border-input bg-background px-3 py-2.5 text-sm placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-violet-500/50 focus:ring-offset-0"
+                          className="w-full rounded-lg border border-input bg-background px-3 py-2.5 text-sm placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-ring/50 focus:ring-offset-0"
                         />
                       </div>
                       <div className="space-y-1.5">
@@ -249,7 +244,7 @@ function ContactPage() {
                           value={email}
                           onChange={(e) => setEmail(e.target.value)}
                           placeholder="you@agency.com"
-                          className="w-full rounded-lg border border-input bg-background px-3 py-2.5 text-sm placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-violet-500/50 focus:ring-offset-0"
+                          className="w-full rounded-lg border border-input bg-background px-3 py-2.5 text-sm placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-ring/50 focus:ring-offset-0"
                         />
                       </div>
                     </div>
@@ -264,7 +259,7 @@ function ContactPage() {
                         value={subject}
                         onChange={(e) => setSubject(e.target.value)}
                         placeholder="What's this about?"
-                        className="w-full rounded-lg border border-input bg-background px-3 py-2.5 text-sm placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-violet-500/50 focus:ring-offset-0"
+                        className="w-full rounded-lg border border-input bg-background px-3 py-2.5 text-sm placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-ring/50 focus:ring-offset-0"
                       />
                     </div>
 
@@ -279,13 +274,13 @@ function ContactPage() {
                         value={message}
                         onChange={(e) => setMessage(e.target.value)}
                         placeholder="Tell us what you're working on, what you need, or what could be better…"
-                        className="w-full resize-none rounded-lg border border-input bg-background px-3 py-2.5 text-sm placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-violet-500/50 focus:ring-offset-0"
+                        className="w-full resize-none rounded-lg border border-input bg-background px-3 py-2.5 text-sm placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-ring/50 focus:ring-offset-0"
                       />
                     </div>
 
                     <button
                       type="submit"
-                      className="group flex w-full items-center justify-center gap-2 rounded-xl bg-gradient-to-r from-violet-600 to-blue-600 py-3 text-sm font-bold text-white shadow-sm transition-all hover:opacity-90 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-violet-400"
+                      className="group flex w-full items-center justify-center gap-2 rounded-xl bg-primary hover:bg-primary/90 py-3 text-sm font-bold text-white shadow-sm transition-all hover:opacity-90 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
                     >
                       <Send className="h-4 w-4" />
                       Send message

@@ -7,6 +7,8 @@ import {
   Download,
   ExternalLink,
   FolderOpen,
+  Code2,
+  ArrowRight,
   Image as ImageIcon,
   LayoutDashboard,
   Loader2,
@@ -23,6 +25,7 @@ import {
 import { useCallback, useEffect, useMemo, useRef, useState, type ElementType } from "react";
 import { toast } from "sonner";
 
+import { KanyoLogo } from "@/components/kanyo-logo";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
@@ -122,18 +125,33 @@ function safeSlug(value: string) {
   );
 }
 
+const KIND_LABELS: Record<string, string> = {
+  portfolio: "Portfolio",
+  landing: "Landing page",
+  business: "Business",
+  saas: "SaaS",
+  commerce: "Commerce",
+  funnel: "Funnel",
+  workshop: "Workshop",
+  events: "Events",
+};
+
+function kindLabel(kind: string) {
+  return KIND_LABELS[kind] ?? kind.charAt(0).toUpperCase() + kind.slice(1);
+}
+
 function kindBadge(kind: string) {
   const colors: Record<string, string> = {
-    portfolio: "bg-sky-50 text-sky-700 ring-sky-200",
-    landing: "bg-violet-50 text-violet-700 ring-violet-200",
-    business: "bg-emerald-50 text-emerald-700 ring-emerald-200",
-    saas: "bg-blue-50 text-blue-700 ring-blue-200",
-    commerce: "bg-amber-50 text-amber-700 ring-amber-200",
-    funnel: "bg-fuchsia-50 text-fuchsia-700 ring-fuchsia-200",
-    workshop: "bg-indigo-50 text-indigo-700 ring-indigo-200",
-    events: "bg-rose-50 text-rose-700 ring-rose-200",
+    portfolio: "bg-sky-500/10 text-sky-700 ring-sky-500/20",
+    landing: "bg-violet-500/10 text-violet-700 ring-violet-500/20",
+    business: "bg-emerald-500/10 text-emerald-700 ring-emerald-500/20",
+    saas: "bg-blue-500/10 text-blue-700 ring-blue-500/20",
+    commerce: "bg-amber-500/10 text-amber-700 ring-amber-500/20",
+    funnel: "bg-fuchsia-500/10 text-fuchsia-700 ring-fuchsia-500/20",
+    workshop: "bg-indigo-500/10 text-indigo-700 ring-indigo-500/20",
+    events: "bg-rose-500/10 text-rose-700 ring-rose-500/20",
   };
-  return colors[kind] ?? "bg-slate-100 text-slate-700 ring-slate-200";
+  return colors[kind] ?? "bg-muted text-muted-foreground ring-border";
 }
 
 export const Route = createFileRoute("/dashboard")({
@@ -549,20 +567,30 @@ function DashboardPage() {
     return <DashboardLoading title="Loading dashboard" />;
   }
 
+  const firstName = displayName.split(" ")[0];
+  const handleSignOut = () => void signOut().then(() => navigate({ to: "/" }));
+
   return (
-    <div className="min-h-screen bg-slate-50 text-slate-950">
-      <div className="mx-auto flex min-h-screen max-w-[1480px]">
-        <aside className="hidden w-72 shrink-0 border-r border-slate-200 bg-white xl:flex xl:flex-col">
-          <div className="border-b border-slate-200 px-6 py-5">
-            <Link to="/" className="inline-flex items-center gap-2 font-semibold">
-              <span className="flex h-9 w-9 items-center justify-center rounded-lg bg-slate-950 text-white">
-                <Sparkles className="h-4 w-4" />
-              </span>
-              kanyoai
+    <div className="min-h-screen bg-background text-foreground">
+      <div className="flex min-h-screen">
+        <aside className="sticky top-0 hidden h-screen w-64 shrink-0 flex-col border-r border-border bg-card lg:flex">
+          <div className="flex h-16 items-center px-5">
+            <Link to="/" aria-label="kanyoai home" className="rounded-md">
+              <KanyoLogo />
             </Link>
           </div>
 
-          <nav className="flex-1 space-y-1 px-4 py-5" aria-label="Dashboard">
+          <div className="px-3">
+            <Button asChild className="w-full">
+              <Link to="/ai">
+                <Sparkles className="h-4 w-4" />
+                New project
+              </Link>
+            </Button>
+          </div>
+
+          <nav className="flex-1 space-y-0.5 px-3 py-5" aria-label="Dashboard">
+            <p className="px-3 pb-2 text-xs font-medium text-muted-foreground">Workspace</p>
             {NAV_ITEMS.map((item) => (
               <DashboardTabButton
                 key={item.id}
@@ -570,7 +598,9 @@ function DashboardPage() {
                 active={activeTab === item.id}
                 count={
                   item.id === "projects"
-                    ? projects.length
+                    ? projectsLoading
+                      ? undefined
+                      : projects.length
                     : item.id === "images" && imagesLoaded
                       ? images.length
                       : undefined
@@ -579,72 +609,68 @@ function DashboardPage() {
               />
             ))}
 
-            <div className="my-4 border-t border-slate-200" />
-            <Button asChild variant="ghost" className="w-full justify-start">
-              <Link to="/ai">
-                <Wand2 className="h-4 w-4" />
-                AI generator
-              </Link>
-            </Button>
+            <p className="px-3 pb-2 pt-6 text-xs font-medium text-muted-foreground">Tools</p>
+            <Link
+              to="/ai"
+              className="flex w-full items-center gap-3 rounded-md px-3 py-2 text-sm font-medium text-muted-foreground transition-colors hover:bg-accent hover:text-foreground"
+            >
+              <Wand2 className="h-4 w-4" />
+              AI generator
+            </Link>
+            <Link
+              to="/playground"
+              className="flex w-full items-center gap-3 rounded-md px-3 py-2 text-sm font-medium text-muted-foreground transition-colors hover:bg-accent hover:text-foreground"
+            >
+              <Code2 className="h-4 w-4" />
+              Playground
+            </Link>
           </nav>
 
-          <div className="border-t border-slate-200 p-4">
-            <div className="mb-3 flex items-center gap-3 rounded-lg bg-slate-50 p-3">
-              {profile?.avatar_url ? (
-                <img
-                  src={profile.avatar_url}
-                  alt=""
-                  className="h-9 w-9 rounded-full object-cover"
-                />
-              ) : (
-                <div className="flex h-9 w-9 items-center justify-center rounded-full bg-slate-950 text-sm font-semibold text-white">
-                  {displayName.charAt(0).toUpperCase()}
-                </div>
-              )}
-              <div className="min-w-0">
-                <p className="truncate text-sm font-semibold">{displayName}</p>
-                <p className="truncate text-xs text-slate-500">{user?.email}</p>
+          <div className="border-t border-border p-3">
+            <div className="flex items-center gap-3 rounded-lg p-2">
+              <Avatar url={profile?.avatar_url} letter={displayName.charAt(0)} />
+              <div className="min-w-0 flex-1">
+                <p className="truncate text-sm font-medium">{displayName}</p>
+                <p className="truncate text-xs text-muted-foreground">{user?.email}</p>
               </div>
+              <button
+                type="button"
+                onClick={handleSignOut}
+                className="rounded-md p-2 text-muted-foreground transition-colors hover:bg-accent hover:text-foreground"
+                aria-label="Sign out"
+                title="Sign out"
+              >
+                <LogOut className="h-4 w-4" />
+              </button>
             </div>
-            <Button
-              type="button"
-              variant="outline"
-              className="w-full justify-start text-slate-600"
-              onClick={() => void signOut().then(() => navigate({ to: "/" }))}
-            >
-              <LogOut className="h-4 w-4" />
-              Sign out
-            </Button>
           </div>
         </aside>
 
         <section className="flex min-w-0 flex-1 flex-col">
-          <header className="sticky top-0 z-20 border-b border-slate-200 bg-white/95 px-4 py-4 backdrop-blur sm:px-6 lg:px-8">
-            <div className="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
-              <div>
-                <p className="text-xs font-semibold uppercase tracking-wide text-slate-500">
-                  Dashboard
-                </p>
-                <h1 className="mt-1 text-2xl font-semibold tracking-tight sm:text-3xl">
-                  {tabTitle(activeTab)}
-                </h1>
-              </div>
-              <div className="flex flex-wrap gap-2">
-                <Button asChild variant="outline">
-                  <Link to="/playground">Playground</Link>
-                </Button>
-                <Button asChild>
+          {/* Mobile / tablet top bar */}
+          <div className="sticky top-0 z-20 border-b border-border bg-background/90 backdrop-blur lg:hidden">
+            <div className="flex h-14 items-center justify-between gap-3 px-4">
+              <Link to="/" aria-label="kanyoai home">
+                <KanyoLogo markClassName="h-7 w-7" />
+              </Link>
+              <div className="flex items-center gap-2">
+                <Button asChild size="sm">
                   <Link to="/ai">
                     <Sparkles className="h-4 w-4" />
-                    New project
+                    New
                   </Link>
                 </Button>
+                <button
+                  type="button"
+                  onClick={handleSignOut}
+                  className="rounded-md border border-border p-2 text-muted-foreground"
+                  aria-label="Sign out"
+                >
+                  <LogOut className="h-4 w-4" />
+                </button>
               </div>
             </div>
-          </header>
-
-          <div className="border-b border-slate-200 bg-white px-3 py-2 xl:hidden">
-            <div className="flex gap-2 overflow-x-auto">
+            <nav className="flex gap-1 overflow-x-auto px-3 pb-2" aria-label="Dashboard">
               {NAV_ITEMS.map((item) => (
                 <DashboardTabButton
                   key={item.id}
@@ -654,10 +680,35 @@ function DashboardPage() {
                   onClick={() => goToTab(item.id)}
                 />
               ))}
-            </div>
+            </nav>
           </div>
 
-          <main className="flex-1 px-4 py-5 sm:px-6 lg:px-8">
+          <main className="mx-auto w-full max-w-6xl flex-1 px-4 py-6 sm:px-6 lg:px-10 lg:py-10">
+            <div className="mb-8 flex flex-col gap-4 sm:flex-row sm:items-end sm:justify-between">
+              <div>
+                <h1 className="font-display text-2xl font-semibold sm:text-3xl">
+                  {activeTab === "overview" ? `Welcome back, ${firstName}` : tabTitle(activeTab)}
+                </h1>
+                <p className="mt-1 text-sm text-muted-foreground">{tabSubtitle(activeTab)}</p>
+              </div>
+              {activeTab !== "settings" && (
+                <div className="hidden gap-2 sm:flex">
+                  <Button asChild variant="outline">
+                    <Link to="/playground">
+                      <Code2 className="h-4 w-4" />
+                      Playground
+                    </Link>
+                  </Button>
+                  <Button asChild>
+                    <Link to="/ai">
+                      <Sparkles className="h-4 w-4" />
+                      New project
+                    </Link>
+                  </Button>
+                </div>
+              )}
+            </div>
+
             {activeTab === "overview" && (
               <OverviewTab
                 projects={projects}
@@ -722,7 +773,7 @@ function DashboardPage() {
                 profile={profile}
                 settings={settings}
                 onSave={updateSettings}
-                onSignOut={() => void signOut().then(() => navigate({ to: "/" }))}
+                onSignOut={handleSignOut}
               />
             )}
           </main>
@@ -742,8 +793,8 @@ function DashboardPage() {
 
 function DashboardLoading({ title }: { title: string }) {
   return (
-    <div className="flex min-h-screen items-center justify-center bg-slate-50">
-      <div className="flex items-center gap-3 rounded-lg border border-slate-200 bg-white px-4 py-3 text-sm text-slate-600 shadow-sm">
+    <div className="flex min-h-screen items-center justify-center bg-background">
+      <div className="flex items-center gap-3 rounded-lg border border-border bg-card px-4 py-3 text-sm text-muted-foreground shadow-sm">
         <Loader2 className="h-4 w-4 animate-spin" />
         {title}
       </div>
@@ -769,25 +820,65 @@ function DashboardTabButton({
     <button
       type="button"
       onClick={onClick}
+      aria-current={active ? "page" : undefined}
       className={[
-        "inline-flex items-center gap-3 rounded-lg text-sm font-medium transition-colors",
-        compact ? "shrink-0 px-3 py-2" : "w-full px-3 py-2.5",
+        "inline-flex items-center gap-3 rounded-md text-sm font-medium transition-colors",
+        compact
+          ? "flex-1 justify-center gap-1.5 px-2 py-1.5 sm:flex-none sm:px-3"
+          : "w-full px-3 py-2",
         active
-          ? "bg-slate-950 text-white"
-          : "text-slate-600 hover:bg-slate-100 hover:text-slate-950",
+          ? "bg-primary/10 text-primary"
+          : "text-muted-foreground hover:bg-accent hover:text-foreground",
       ].join(" ")}
     >
-      <Icon className="h-4 w-4" />
+      <Icon className={compact ? "hidden h-4 w-4 sm:block" : "h-4 w-4"} />
       {item.label}
       {typeof count === "number" && !compact && (
         <span
-          className={active ? "ml-auto text-xs text-white/70" : "ml-auto text-xs text-slate-400"}
+          className={[
+            "ml-auto rounded-full px-2 py-0.5 text-xs tabular-nums",
+            active ? "bg-primary/15 text-primary" : "bg-muted text-muted-foreground",
+          ].join(" ")}
         >
           {count}
         </span>
       )}
     </button>
   );
+}
+
+function Avatar({
+  url,
+  letter,
+  size = "sm",
+}: {
+  url?: string | null;
+  letter: string;
+  size?: "sm" | "lg";
+}) {
+  const dims = size === "lg" ? "h-12 w-12 text-base" : "h-9 w-9 text-sm";
+  return url ? (
+    <img src={url} alt="" className={`${dims} shrink-0 rounded-full object-cover`} />
+  ) : (
+    <div
+      className={`${dims} flex shrink-0 items-center justify-center rounded-full bg-primary/10 font-semibold text-primary`}
+    >
+      {letter.toUpperCase()}
+    </div>
+  );
+}
+
+function tabSubtitle(tab: DashTab) {
+  switch (tab) {
+    case "projects":
+      return "Every website you have generated. Open one to keep editing.";
+    case "images":
+      return "Generate images or upload your own, then use their URLs in any site.";
+    case "settings":
+      return "Manage your profile, password, and default AI model.";
+    default:
+      return "Pick up where you left off, or start something new.";
+  }
 }
 
 function tabTitle(tab: DashTab) {
@@ -827,9 +918,10 @@ function OverviewTab({
   projectAction: ProjectAction | null;
 }) {
   const recent = projects.slice(0, 5);
+  const recentImages = images.slice(0, 6);
   return (
     <div className="space-y-6">
-      <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
+      <div className="grid grid-cols-2 gap-3 xl:grid-cols-4">
         <StatCard
           label="Projects"
           value={projectsLoading ? null : projects.length}
@@ -844,20 +936,18 @@ function OverviewTab({
         <StatCard label="Default model" value={preferredModel} Icon={Sparkles} />
       </div>
 
-      <div className="grid gap-6 xl:grid-cols-[1.2fr_0.8fr]">
-        <section className="rounded-lg border border-slate-200 bg-white p-4 shadow-sm sm:p-5">
-          <div className="mb-4 flex items-center justify-between gap-3">
-            <div>
-              <h2 className="font-semibold">Recent projects</h2>
-              <p className="text-sm text-slate-500">
-                Continue or export your latest generated sites.
-              </p>
-            </div>
-            <Button type="button" variant="outline" size="sm" onClick={() => onTab("projects")}>
-              View all
-            </Button>
-          </div>
-
+      <div className="grid gap-6 xl:grid-cols-[minmax(0,1fr)_340px] [&>*]:min-w-0">
+        <Panel
+          title="Recent projects"
+          action={
+            projects.length > 0 ? (
+              <Button type="button" variant="ghost" size="sm" onClick={() => onTab("projects")}>
+                View all
+                <ArrowRight className="h-3.5 w-3.5" />
+              </Button>
+            ) : null
+          }
+        >
           {projectsLoading ? (
             <SkeletonRows />
           ) : recent.length === 0 ? (
@@ -867,12 +957,15 @@ function OverviewTab({
               body="Generate your first website and it will appear here."
               action={
                 <Button asChild>
-                  <Link to="/ai">Open generator</Link>
+                  <Link to="/ai">
+                    <Sparkles className="h-4 w-4" />
+                    Create a website
+                  </Link>
                 </Button>
               }
             />
           ) : (
-            <div className="space-y-2">
+            <div className="-mx-1 divide-y divide-border">
               {recent.map((project) => (
                 <ProjectRow
                   key={project.id}
@@ -884,36 +977,125 @@ function OverviewTab({
               ))}
             </div>
           )}
-        </section>
+        </Panel>
 
-        <section className="rounded-lg border border-slate-200 bg-white p-4 shadow-sm sm:p-5">
-          <h2 className="font-semibold">Quick actions</h2>
-          <div className="mt-4 grid gap-3">
-            <Button asChild className="justify-start">
-              <Link to="/ai">
-                <Sparkles className="h-4 w-4" />
-                Create website
-              </Link>
-            </Button>
-            <Button
-              type="button"
-              variant="outline"
-              className="justify-start"
-              onClick={() => onTab("images")}
+        <div className="space-y-6">
+          <Panel title="Start something new">
+            <div className="grid gap-2">
+              <QuickAction
+                to="/ai"
+                Icon={Sparkles}
+                title="Generate a website"
+                body="Describe it and let AI build it"
+                primary
+              />
+              <QuickAction
+                onClick={() => onTab("images")}
+                Icon={ImageIcon}
+                title="Create an image"
+                body="Generate or upload assets"
+              />
+              <QuickAction
+                to="/playground"
+                Icon={Code2}
+                title="Open the playground"
+                body="Write HTML, CSS, and JS by hand"
+              />
+            </div>
+          </Panel>
+
+          {recentImages.length > 0 && (
+            <Panel
+              title="Latest images"
+              action={
+                <Button type="button" variant="ghost" size="sm" onClick={() => onTab("images")}>
+                  View all
+                  <ArrowRight className="h-3.5 w-3.5" />
+                </Button>
+              }
             >
-              <ImageIcon className="h-4 w-4" />
-              Open image library
-            </Button>
-            <Button asChild variant="outline" className="justify-start">
-              <Link to="/playground">
-                <Wand2 className="h-4 w-4" />
-                Open playground
-              </Link>
-            </Button>
-          </div>
-        </section>
+              <div className="grid grid-cols-3 gap-2">
+                {recentImages.map((image) => (
+                  <img
+                    key={image.path}
+                    src={image.url}
+                    alt={image.name}
+                    loading="lazy"
+                    decoding="async"
+                    className="aspect-square w-full rounded-md border border-border bg-muted object-cover"
+                  />
+                ))}
+              </div>
+            </Panel>
+          )}
+        </div>
       </div>
     </div>
+  );
+}
+
+function Panel({
+  title,
+  action,
+  children,
+}: {
+  title: string;
+  action?: React.ReactNode;
+  children: React.ReactNode;
+}) {
+  return (
+    <section className="rounded-xl border border-border bg-card p-4 shadow-sm sm:p-5">
+      <div className="mb-4 flex min-h-8 items-center justify-between gap-3">
+        <h2 className="font-semibold">{title}</h2>
+        {action}
+      </div>
+      {children}
+    </section>
+  );
+}
+
+function QuickAction({
+  to,
+  onClick,
+  Icon,
+  title,
+  body,
+  primary = false,
+}: {
+  to?: "/ai" | "/playground";
+  onClick?: () => void;
+  Icon: ElementType;
+  title: string;
+  body: string;
+  primary?: boolean;
+}) {
+  const inner = (
+    <>
+      <span
+        className={[
+          "flex h-9 w-9 shrink-0 items-center justify-center rounded-lg",
+          primary ? "bg-primary text-primary-foreground" : "bg-muted text-foreground",
+        ].join(" ")}
+      >
+        <Icon className="h-4 w-4" />
+      </span>
+      <span className="min-w-0 flex-1 text-left">
+        <span className="block text-sm font-medium">{title}</span>
+        <span className="block truncate text-xs text-muted-foreground">{body}</span>
+      </span>
+      <ArrowRight className="h-4 w-4 text-muted-foreground transition-transform group-hover:translate-x-0.5" />
+    </>
+  );
+  const cls =
+    "group flex w-full items-center gap-3 rounded-lg border border-border p-3 transition-colors hover:border-primary/40 hover:bg-accent/50";
+  return to ? (
+    <Link to={to} className={cls}>
+      {inner}
+    </Link>
+  ) : (
+    <button type="button" onClick={onClick} className={cls}>
+      {inner}
+    </button>
   );
 }
 
@@ -927,20 +1109,23 @@ function StatCard({
   Icon: ElementType;
 }) {
   return (
-    <div className="rounded-lg border border-slate-200 bg-white p-4 shadow-sm">
-      <div className="flex items-center justify-between gap-3">
-        <div>
-          <p className="text-sm text-slate-500">{label}</p>
-          {value === null ? (
-            <div className="mt-3 h-7 w-20 animate-pulse rounded bg-slate-100" />
-          ) : (
-            <p className="mt-2 truncate text-2xl font-semibold">{value}</p>
-          )}
-        </div>
-        <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-slate-100 text-slate-700">
-          <Icon className="h-5 w-5" />
-        </div>
+    <div className="rounded-xl border border-border bg-card p-4 shadow-sm">
+      <div className="flex items-center gap-2 text-sm text-muted-foreground">
+        <Icon className="h-4 w-4" />
+        <span className="truncate">{label}</span>
       </div>
+      {value === null ? (
+        <div className="mt-3 h-7 w-16 animate-pulse rounded bg-muted" />
+      ) : (
+        <p
+          className={[
+            "mt-2 truncate font-display font-semibold tabular-nums",
+            typeof value === "number" ? "text-3xl" : "text-xl leading-9",
+          ].join(" ")}
+        >
+          {value}
+        </p>
+      )}
     </div>
   );
 }
@@ -979,37 +1164,45 @@ function ProjectsTab({
   const visible = filteredProjects.slice(0, MAX_RENDERED_PROJECTS);
   return (
     <div className="space-y-5">
-      <section className="rounded-lg border border-slate-200 bg-white p-4 shadow-sm sm:p-5">
-        <div className="grid gap-3 lg:grid-cols-[1fr_auto_auto] lg:items-center">
-          <div className="relative">
-            <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400" />
-            <Input
-              value={query}
-              onChange={(event) => onQuery(event.target.value)}
-              placeholder="Search projects"
-              className="pl-9"
-            />
-          </div>
-          <select
-            value={sort}
-            onChange={(event) => onSort(event.target.value as SortKey)}
-            className="h-9 rounded-md border border-slate-200 bg-white px-3 text-sm text-slate-700 shadow-sm outline-none focus:ring-1 focus:ring-slate-400"
-          >
-            <option value="updated_desc">Recently updated</option>
-            <option value="updated_asc">Oldest updated</option>
-            <option value="name_asc">Name A-Z</option>
-            <option value="name_desc">Name Z-A</option>
-          </select>
-          <Button type="button" variant="outline" size="sm" onClick={onRetry} disabled={loading}>
-            {loading ? (
-              <Loader2 className="h-4 w-4 animate-spin" />
-            ) : (
-              <RefreshCw className="h-4 w-4" />
-            )}
-            Refresh
-          </Button>
+      <div className="flex flex-wrap items-center gap-2">
+        <div className="relative min-w-0 flex-1 basis-56">
+          <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
+          <Input
+            value={query}
+            onChange={(event) => onQuery(event.target.value)}
+            placeholder="Search projects"
+            aria-label="Search projects"
+            className="bg-card pl-9"
+          />
         </div>
-      </section>
+        <select
+          value={sort}
+          onChange={(event) => onSort(event.target.value as SortKey)}
+          aria-label="Sort projects"
+          className="h-9 rounded-md border border-input bg-card px-3 text-sm shadow-sm outline-none focus-visible:ring-2 focus-visible:ring-ring"
+        >
+          <option value="updated_desc">Recently updated</option>
+          <option value="updated_asc">Oldest updated</option>
+          <option value="name_asc">Name A-Z</option>
+          <option value="name_desc">Name Z-A</option>
+        </select>
+        <Button
+          type="button"
+          variant="outline"
+          size="icon"
+          className="bg-card"
+          onClick={onRetry}
+          disabled={loading}
+          aria-label="Refresh projects"
+          title="Refresh"
+        >
+          {loading ? (
+            <Loader2 className="h-4 w-4 animate-spin" />
+          ) : (
+            <RefreshCw className="h-4 w-4" />
+          )}
+        </Button>
+      </div>
 
       {error ? (
         <ErrorState title="Projects could not load" body={error} onRetry={onRetry} />
@@ -1030,7 +1223,7 @@ function ProjectsTab({
         <EmptyState Icon={Search} title="No matches" body={`No projects match "${query}".`} />
       ) : (
         <>
-          <div className="grid gap-3 md:grid-cols-2 2xl:grid-cols-3">
+          <div className="grid grid-cols-1 gap-4 md:grid-cols-2 xl:grid-cols-3 [&>*]:min-w-0">
             {visible.map((project) => (
               <ProjectCard
                 key={project.id}
@@ -1044,8 +1237,8 @@ function ProjectsTab({
             ))}
           </div>
           {filteredProjects.length > visible.length && (
-            <p className="text-sm text-slate-500">
-              Showing the latest {visible.length} projects to keep the dashboard fast.
+            <p className="text-sm text-muted-foreground">
+              Showing your {visible.length} most relevant projects. Use search to find older ones.
             </p>
           )}
         </>
@@ -1074,42 +1267,51 @@ function ProjectCard({
   const previewing = action?.type === "preview" && action.id === project.id;
 
   return (
-    <article className="rounded-lg border border-slate-200 bg-white p-4 shadow-sm">
-      <div className="flex items-start justify-between gap-3">
-        <div className="min-w-0">
-          <h2 className="truncate font-semibold">{project.title}</h2>
-          <div className="mt-2 flex flex-wrap gap-2">
-            <span
-              className={`rounded px-2 py-1 text-xs font-medium capitalize ring-1 ${kindBadge(project.kind)}`}
-            >
-              {project.kind}
-            </span>
-            {project.model && (
-              <span className="rounded bg-slate-100 px-2 py-1 font-mono text-xs text-slate-500">
-                {project.model}
-              </span>
-            )}
-          </div>
+    <article className="flex flex-col rounded-xl border border-border bg-card p-4 shadow-sm transition-shadow hover:shadow-md">
+      <div className="flex items-start gap-3">
+        <ProjectMonogram project={project} size="lg" />
+        <div className="min-w-0 flex-1">
+          <h2 className="truncate font-semibold" title={project.title}>
+            {project.title}
+          </h2>
+          <p className="mt-0.5 flex items-center gap-1.5 text-xs text-muted-foreground">
+            <Clock className="h-3.5 w-3.5" />
+            {formatDistanceToNow(new Date(project.updated_at), { addSuffix: true })}
+          </p>
         </div>
         <button
           type="button"
           onClick={() => onDelete(project.id)}
           disabled={deleting}
-          className="rounded-md p-1.5 text-slate-400 transition-colors hover:bg-red-50 hover:text-red-600 disabled:cursor-wait"
-          aria-label="Delete project"
+          className="rounded-md p-1.5 text-muted-foreground transition-colors hover:bg-destructive/10 hover:text-destructive disabled:cursor-wait"
+          aria-label={`Delete ${project.title}`}
+          title="Delete project"
         >
           {deleting ? <Loader2 className="h-4 w-4 animate-spin" /> : <Trash2 className="h-4 w-4" />}
         </button>
       </div>
 
-      <p className="mt-4 flex items-center gap-1.5 text-xs text-slate-500">
-        <Clock className="h-3.5 w-3.5" />
-        Updated {formatDistanceToNow(new Date(project.updated_at), { addSuffix: true })}
-      </p>
+      <div className="mt-4 flex flex-wrap gap-1.5">
+        <span
+          className={`rounded-md px-2 py-0.5 text-xs font-medium ring-1 ${kindBadge(project.kind)}`}
+        >
+          {kindLabel(project.kind)}
+        </span>
+        {project.style?.label && project.style.label !== kindLabel(project.kind) && (
+          <span className="rounded-md bg-muted px-2 py-0.5 text-xs text-muted-foreground">
+            {project.style.label}
+          </span>
+        )}
+        {project.model && (
+          <span className="rounded-md bg-muted px-2 py-0.5 font-mono text-xs text-muted-foreground">
+            {project.model}
+          </span>
+        )}
+      </div>
 
-      <div className="mt-4 flex gap-2">
+      <div className="mt-5 flex gap-2 border-t border-border pt-4">
         <Button type="button" size="sm" className="flex-1" onClick={() => onEdit(project)}>
-          <Pencil className="h-4 w-4" />
+          <Pencil className="h-3.5 w-3.5" />
           Edit
         </Button>
         <Button
@@ -1118,6 +1320,8 @@ function ProjectCard({
           variant="outline"
           onClick={() => void onPreview(project)}
           disabled={previewing}
+          aria-label={`Preview ${project.title}`}
+          title="Preview in new tab"
         >
           {previewing ? (
             <Loader2 className="h-4 w-4 animate-spin" />
@@ -1131,6 +1335,8 @@ function ProjectCard({
           variant="outline"
           onClick={() => void onDownload(project)}
           disabled={downloading}
+          aria-label={`Download ${project.title}`}
+          title="Download ZIP"
         >
           {downloading ? (
             <Loader2 className="h-4 w-4 animate-spin" />
@@ -1156,21 +1362,28 @@ function ProjectRow({
 }) {
   const downloading = action?.type === "download" && action.id === project.id;
   return (
-    <div className="flex flex-col gap-3 rounded-lg border border-slate-200 p-3 sm:flex-row sm:items-center sm:justify-between">
-      <div className="min-w-0">
+    <div className="flex items-center gap-3 px-1 py-3">
+      <ProjectMonogram project={project} />
+      <div className="min-w-0 flex-1">
         <p className="truncate text-sm font-medium">{project.title}</p>
-        <p className="mt-1 text-xs capitalize text-slate-500">{project.kind}</p>
+        <p className="mt-0.5 truncate text-xs text-muted-foreground">
+          {kindLabel(project.kind)} · Updated{" "}
+          {formatDistanceToNow(new Date(project.updated_at), { addSuffix: true })}
+        </p>
       </div>
-      <div className="flex gap-2">
-        <Button type="button" size="sm" onClick={() => onEdit(project)}>
-          Edit
+      <div className="flex shrink-0 gap-1.5">
+        <Button type="button" size="sm" variant="outline" onClick={() => onEdit(project)}>
+          <Pencil className="h-3.5 w-3.5" />
+          <span className="hidden sm:inline">Edit</span>
         </Button>
         <Button
           type="button"
           size="sm"
-          variant="outline"
+          variant="ghost"
           onClick={() => void onDownload(project)}
           disabled={downloading}
+          aria-label={`Download ${project.title}`}
+          title="Download ZIP"
         >
           {downloading ? (
             <Loader2 className="h-4 w-4 animate-spin" />
@@ -1180,6 +1393,22 @@ function ProjectRow({
         </Button>
       </div>
     </div>
+  );
+}
+
+function ProjectMonogram({ project, size = "sm" }: { project: AiProject; size?: "sm" | "lg" }) {
+  const letter = (project.title.trim().charAt(0) || "?").toUpperCase();
+  return (
+    <span
+      className={[
+        "flex shrink-0 items-center justify-center rounded-lg font-display font-semibold ring-1",
+        size === "lg" ? "h-11 w-11 text-lg" : "h-9 w-9 text-sm",
+        kindBadge(project.kind),
+      ].join(" ")}
+      aria-hidden="true"
+    >
+      {letter}
+    </span>
   );
 }
 
@@ -1229,9 +1458,9 @@ function ImagesTab({
   return (
     <div className="space-y-5">
       <div className="grid gap-5 xl:grid-cols-[0.85fr_1.15fr]">
-        <section className="rounded-lg border border-slate-200 bg-white p-4 shadow-sm sm:p-5">
+        <section className="rounded-xl border border-border bg-card p-4 shadow-sm sm:p-5">
           <h2 className="font-semibold">Generate image</h2>
-          <p className="mt-1 text-sm text-slate-500">
+          <p className="mt-1 text-sm text-muted-foreground">
             Creates a PNG with gpt-image-2 and saves it to your library.
           </p>
           <div className="mt-4 space-y-3">
@@ -1246,7 +1475,7 @@ function ImagesTab({
               <select
                 value={imageSize}
                 onChange={(event) => onSize(event.target.value as ImageSize)}
-                className="h-9 rounded-md border border-slate-200 bg-white px-3 text-sm outline-none focus:ring-1 focus:ring-slate-400"
+                className="h-9 rounded-md border border-input bg-background px-3 text-sm shadow-sm outline-none focus-visible:ring-2 focus-visible:ring-ring"
               >
                 <option value="1024x1024">Square</option>
                 <option value="1536x1024">Landscape</option>
@@ -1255,7 +1484,7 @@ function ImagesTab({
               <select
                 value={imageQuality}
                 onChange={(event) => onQuality(event.target.value as ImageQuality)}
-                className="h-9 rounded-md border border-slate-200 bg-white px-3 text-sm outline-none focus:ring-1 focus:ring-slate-400"
+                className="h-9 rounded-md border border-input bg-background px-3 text-sm shadow-sm outline-none focus-visible:ring-2 focus-visible:ring-ring"
               >
                 <option value="low">Low quality</option>
                 <option value="medium">Medium quality</option>
@@ -1278,11 +1507,11 @@ function ImagesTab({
           </div>
         </section>
 
-        <section className="rounded-lg border border-slate-200 bg-white p-4 shadow-sm sm:p-5">
+        <section className="rounded-xl border border-border bg-card p-4 shadow-sm sm:p-5">
           <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
             <div>
               <h2 className="font-semibold">Image library</h2>
-              <p className="mt-1 text-sm text-slate-500">
+              <p className="mt-1 text-sm text-muted-foreground">
                 {loaded ? `${images.length} saved images` : "Loading your saved images"}
               </p>
             </div>
@@ -1310,10 +1539,6 @@ function ImagesTab({
               </Button>
             </div>
           </div>
-          <p className="mt-3 text-xs text-slate-500">
-            Files are loaded lazily and capped on screen so opening this tab does not freeze the
-            dashboard.
-          </p>
         </section>
       </div>
 
@@ -1342,8 +1567,8 @@ function ImagesTab({
             ))}
           </div>
           {images.length > visible.length && (
-            <p className="text-sm text-slate-500">
-              Showing the latest {visible.length} images. Use refresh after deleting or uploading.
+            <p className="text-sm text-muted-foreground">
+              Showing your latest {visible.length} images.
             </p>
           )}
         </>
@@ -1367,10 +1592,10 @@ function ImageTile({
 }) {
   return (
     <article
-      className="overflow-hidden rounded-lg border border-slate-200 bg-white shadow-sm"
+      className="overflow-hidden rounded-xl border border-border bg-card shadow-sm"
       style={{ contentVisibility: "auto" }}
     >
-      <div className="aspect-square bg-slate-100">
+      <div className="aspect-square bg-muted">
         <img
           src={image.url}
           alt={image.name}
@@ -1380,7 +1605,7 @@ function ImageTile({
         />
       </div>
       <div className="space-y-2 p-2.5">
-        <p className="truncate text-xs text-slate-500" title={image.name}>
+        <p className="truncate text-xs text-muted-foreground" title={image.name}>
           {image.name}
         </p>
         <div className="flex gap-2">
@@ -1472,21 +1697,15 @@ function SettingsTab({
 
   return (
     <div className="max-w-3xl space-y-5">
-      <section className="rounded-lg border border-slate-200 bg-white p-5 shadow-sm">
+      <section className="rounded-xl border border-border bg-card p-5 shadow-sm">
         <h2 className="font-semibold">Profile</h2>
         <div className="mt-4 flex items-center gap-3">
-          {profile?.avatar_url ? (
-            <img src={profile.avatar_url} alt="" className="h-12 w-12 rounded-full object-cover" />
-          ) : (
-            <div className="flex h-12 w-12 items-center justify-center rounded-full bg-slate-950 font-semibold text-white">
-              {avatarLetter}
-            </div>
-          )}
+          <Avatar url={profile?.avatar_url} letter={avatarLetter} size="lg" />
           <div className="min-w-0">
             <p className="truncate font-medium">
               {settings.displayName || user?.email?.split("@")[0]}
             </p>
-            <p className="truncate text-sm text-slate-500">{user?.email}</p>
+            <p className="truncate text-sm text-muted-foreground">{user?.email}</p>
           </div>
         </div>
 
@@ -1506,7 +1725,7 @@ function SettingsTab({
         </div>
       </section>
 
-      <section className="rounded-lg border border-slate-200 bg-white p-5 shadow-sm">
+      <section className="rounded-xl border border-border bg-card p-5 shadow-sm">
         <h2 className="font-semibold">Change password</h2>
         <div className="mt-4 grid gap-3">
           <Input
@@ -1535,7 +1754,7 @@ function SettingsTab({
         </div>
       </section>
 
-      <section className="rounded-lg border border-slate-200 bg-white p-5 shadow-sm">
+      <section className="rounded-xl border border-border bg-card p-5 shadow-sm">
         <h2 className="font-semibold">AI model preference</h2>
         <div className="mt-4 grid gap-3 sm:grid-cols-2">
           {SETTINGS_MODELS.map((model) => (
@@ -1546,8 +1765,8 @@ function SettingsTab({
               className={[
                 "rounded-lg border p-4 text-left transition-colors",
                 settings.preferredModel === model.id
-                  ? "border-slate-950 bg-slate-950 text-white"
-                  : "border-slate-200 bg-white hover:border-slate-400",
+                  ? "border-primary bg-primary/5 ring-1 ring-primary"
+                  : "border-border bg-card hover:border-primary/40",
               ].join(" ")}
             >
               <div className="flex items-center justify-between gap-2">
@@ -1555,31 +1774,23 @@ function SettingsTab({
                 <span
                   className={
                     settings.preferredModel === model.id
-                      ? "text-xs text-white/70"
-                      : "text-xs text-slate-500"
+                      ? "rounded-full bg-primary/10 px-2 py-0.5 text-xs font-medium text-primary"
+                      : "rounded-full bg-muted px-2 py-0.5 text-xs text-muted-foreground"
                   }
                 >
                   {model.badge}
                 </span>
               </div>
-              <p
-                className={
-                  settings.preferredModel === model.id
-                    ? "mt-2 text-sm text-white/70"
-                    : "mt-2 text-sm text-slate-500"
-                }
-              >
-                {model.note}
-              </p>
+              <p className={"mt-2 text-sm text-muted-foreground"}>{model.note}</p>
             </button>
           ))}
         </div>
       </section>
 
-      <section className="rounded-lg border border-red-200 bg-white p-5 shadow-sm">
-        <h2 className="font-semibold text-red-700">Sign out</h2>
-        <p className="mt-1 text-sm text-slate-500">Sign out from this device.</p>
-        <Button type="button" variant="destructive" className="mt-4" onClick={onSignOut}>
+      <section className="rounded-xl border border-border bg-card p-5 shadow-sm">
+        <h2 className="font-semibold">Sign out</h2>
+        <p className="mt-1 text-sm text-muted-foreground">Sign out from this device.</p>
+        <Button type="button" variant="outline" className="mt-4" onClick={onSignOut}>
           <LogOut className="h-4 w-4" />
           Sign out
         </Button>
@@ -1600,10 +1811,12 @@ function EmptyState({
   action?: React.ReactNode;
 }) {
   return (
-    <div className="rounded-lg border border-dashed border-slate-300 bg-white p-10 text-center">
-      <Icon className="mx-auto h-10 w-10 text-slate-300" />
-      <h2 className="mt-3 font-semibold">{title}</h2>
-      <p className="mx-auto mt-1 max-w-sm text-sm text-slate-500">{body}</p>
+    <div className="rounded-xl border border-dashed border-border bg-card p-10 text-center">
+      <span className="mx-auto flex h-12 w-12 items-center justify-center rounded-full bg-muted text-muted-foreground">
+        <Icon className="h-5 w-5" />
+      </span>
+      <h2 className="mt-4 font-semibold">{title}</h2>
+      <p className="mx-auto mt-1 max-w-sm text-sm text-muted-foreground">{body}</p>
       {action && <div className="mt-5">{action}</div>}
     </div>
   );
@@ -1619,10 +1832,10 @@ function ErrorState({
   onRetry: () => void;
 }) {
   return (
-    <div className="rounded-lg border border-red-200 bg-red-50 p-5">
-      <h2 className="font-semibold text-red-700">{title}</h2>
-      <p className="mt-1 text-sm text-red-700/80">{body}</p>
-      <Button type="button" variant="outline" className="mt-4 bg-white" onClick={onRetry}>
+    <div className="rounded-xl border border-destructive/30 bg-destructive/5 p-5">
+      <h2 className="font-semibold text-destructive">{title}</h2>
+      <p className="mt-1 text-sm text-muted-foreground">{body}</p>
+      <Button type="button" variant="outline" className="mt-4" onClick={onRetry}>
         Try again
       </Button>
     </div>
@@ -1631,9 +1844,9 @@ function ErrorState({
 
 function SkeletonCards() {
   return (
-    <div className="grid gap-3 md:grid-cols-2 2xl:grid-cols-3">
+    <div className="grid grid-cols-1 gap-4 md:grid-cols-2 xl:grid-cols-3">
       {Array.from({ length: 6 }).map((_, index) => (
-        <div key={index} className="h-44 animate-pulse rounded-lg bg-slate-100" />
+        <div key={index} className="h-44 animate-pulse rounded-xl bg-muted" />
       ))}
     </div>
   );
@@ -1643,7 +1856,7 @@ function SkeletonRows() {
   return (
     <div className="space-y-2">
       {Array.from({ length: 4 }).map((_, index) => (
-        <div key={index} className="h-14 animate-pulse rounded-lg bg-slate-100" />
+        <div key={index} className="h-14 animate-pulse rounded-xl bg-muted" />
       ))}
     </div>
   );
@@ -1653,7 +1866,7 @@ function ImageSkeleton() {
   return (
     <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-4 2xl:grid-cols-6">
       {Array.from({ length: 12 }).map((_, index) => (
-        <div key={index} className="aspect-square animate-pulse rounded-lg bg-slate-100" />
+        <div key={index} className="aspect-square animate-pulse rounded-xl bg-muted" />
       ))}
     </div>
   );
