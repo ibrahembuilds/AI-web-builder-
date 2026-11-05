@@ -6,15 +6,14 @@ import {
   Download,
   Image as ImageIcon,
   Layers,
-  LayoutDashboard,
+  MessageSquare,
   Palette,
-  ShieldCheck,
   Sparkles,
   Wand2,
-  Zap,
 } from "lucide-react";
 
 import { SiteFooter, SiteHeader } from "@/components/site-header";
+import { Button } from "@/components/ui/button";
 
 export const Route = createFileRoute("/")({
   head: () => ({
@@ -23,188 +22,199 @@ export const Route = createFileRoute("/")({
       {
         name: "description",
         content:
-          "Generate responsive client websites, image assets, and clean HTML/CSS/JS exports from one simple workspace.",
+          "Describe a client website and get clean, responsive HTML, CSS, and JavaScript. Refine it by chat, then export a ZIP.",
       },
       { property: "og:title", content: "kanyoai - AI website builder for agencies" },
       {
         property: "og:description",
-        content: "Build responsive client websites with AI, save images, and export clean code.",
+        content: "Describe a client website and get clean, responsive code you own.",
       },
     ],
   }),
   component: Index,
 });
 
-const stats = [
-  { value: "8", label: "Page types" },
-  { value: "11", label: "Style presets" },
-  { value: "3", label: "Image sizes" },
-  { value: "ZIP", label: "Clean export" },
-];
-
-const workflow = [
+const steps = [
   {
     Icon: Wand2,
-    title: "Write the brief",
-    body: "Add the client goal, audience, pages, tone, logo, and any images you already have.",
+    title: "Describe the site",
+    body: "Write a short brief: the client, the audience, the pages, the tone. Add a logo and images if you have them.",
   },
   {
     Icon: Sparkles,
-    title: "Generate the site",
-    body: "kanyoai creates the HTML, CSS, JavaScript, page structure, copy, and optional AI image assets.",
+    title: "Generate and preview",
+    body: "kanyoai writes the layout, copy, and code. Check it on desktop, tablet, and mobile right away.",
   },
   {
-    Icon: Download,
-    title: "Export or keep editing",
-    body: "Preview the result, revise by chat, save projects, copy image URLs, or download a ZIP.",
+    Icon: MessageSquare,
+    title: "Refine by chat, then export",
+    body: "Ask for changes in plain language. When it looks right, download a ZIP of plain HTML, CSS, and JS.",
   },
 ];
 
 const features = [
   {
-    Icon: LayoutDashboard,
-    title: "Project dashboard",
-    body: "Saved websites, recent work, image assets, and settings stay in one workspace.",
-  },
-  {
-    Icon: ImageIcon,
-    title: "Image generation",
-    body: "Create square, portrait, or landscape PNGs and store them in the image library.",
-  },
-  {
     Icon: Code2,
-    title: "Clean code",
-    body: "Export standard HTML, CSS, and JavaScript without a proprietary runtime.",
+    title: "Code you own",
+    body: "Standard HTML, CSS, and JavaScript. No proprietary runtime, no lock-in, host it anywhere.",
   },
   {
     Icon: Layers,
-    title: "Multi-page builds",
-    body: "Generate complete sites with pages like Home, About, Services, Pricing, Blog, and Contact.",
+    title: "Multi-page sites",
+    body: "Home, About, Services, Pricing, Blog, Contact, FAQ, all generated from one brief.",
   },
   {
     Icon: Palette,
-    title: "Style presets",
-    body: "Choose layouts and visual direction for SaaS, landing, business, commerce, events, and more.",
+    title: "Your brand, exactly",
+    body: "Pick one of 11 style presets or enter exact hex colors. Upload a logo or generate one.",
   },
   {
-    Icon: ShieldCheck,
-    title: "Account storage",
-    body: "Projects and generated image URLs are saved to your signed-in workspace.",
+    Icon: ImageIcon,
+    title: "AI images",
+    body: "Generate hero images and assets, and keep them in a reusable image library.",
+  },
+  {
+    Icon: MessageSquare,
+    title: "Edit by chat",
+    body: "“Make the hero darker” or “add a pricing table”. Changes apply to the existing site.",
+  },
+  {
+    Icon: Download,
+    title: "One-click export",
+    body: "Download a ready-to-host ZIP, or keep editing the code in the built-in playground.",
   },
 ];
 
-const checklist = [
-  "Responsive pages for mobile and desktop",
-  "Project edit, preview, delete, and ZIP download",
-  "Image upload, generation, copy URL, and delete",
-  "Fast dashboard tabs with lazy image rendering",
-  "No lock-in after export",
+const included = [
+  "Responsive layouts for desktop, tablet, and mobile",
+  "Real copy written from your brief, no lorem ipsum",
+  "Projects saved to your account automatically",
+  "Optional pop-ups for newsletters and contact forms",
 ];
 
 function Index() {
   return (
-    <div className="min-h-screen bg-white text-slate-950">
+    <div className="min-h-screen bg-background text-foreground">
       <SiteHeader />
 
       <main>
-        <section className="relative isolate overflow-hidden bg-slate-950 text-white">
-          <img
-            src="/kanyoai-dashboard-preview.png"
-            alt=""
-            className="absolute inset-0 -z-20 h-full w-full object-cover opacity-35"
-          />
-          <div className="absolute inset-0 -z-10 bg-slate-950/78" />
-          <div className="mx-auto flex min-h-[76vh] max-w-7xl flex-col justify-center px-4 py-16 sm:px-6 lg:px-8">
-            <div className="max-w-3xl">
-              <p className="inline-flex items-center gap-2 rounded-full border border-white/20 bg-white/10 px-3 py-1 text-xs font-semibold uppercase tracking-wide text-white/80">
+        {/* Hero */}
+        <section className="relative isolate overflow-hidden">
+          <div className="grid-bg absolute inset-0 -z-10 [mask-image:radial-gradient(ellipse_at_top,black_20%,transparent_70%)]" />
+          <div className="mx-auto max-w-7xl px-4 pb-16 pt-16 sm:px-6 sm:pt-24 lg:pb-24">
+            <div className="mx-auto max-w-3xl text-center">
+              <p className="inline-flex items-center gap-2 rounded-full border border-primary/20 bg-primary/5 px-3 py-1 text-xs font-medium text-primary">
                 <Sparkles className="h-3.5 w-3.5" />
-                AI website builder
+                AI website builder for agencies
               </p>
-              <h1 className="mt-6 text-5xl font-semibold tracking-tight sm:text-7xl">kanyoai</h1>
-              <p className="mt-6 max-w-2xl text-lg leading-8 text-slate-200 sm:text-xl">
-                Generate responsive client websites, image assets, and clean code exports from one
-                focused workspace.
+              <h1 className="mt-6 text-balance font-display text-4xl font-semibold leading-[1.1] sm:text-6xl">
+                Describe a website.
+                <br className="hidden sm:block" /> Get clean code you own.
+              </h1>
+              <p className="mx-auto mt-6 max-w-2xl text-pretty text-lg leading-8 text-muted-foreground">
+                kanyoai turns a short client brief into a responsive, multi-page site in HTML, CSS,
+                and JavaScript. Refine it by chat, then export and host it anywhere.
               </p>
-              <div className="mt-8 flex flex-col gap-3 sm:flex-row">
-                <Link
-                  to="/login"
-                  search={{ redirect: "/ai" }}
-                  className="inline-flex h-11 items-center justify-center gap-2 rounded-lg bg-white px-5 text-sm font-semibold text-slate-950 transition-colors hover:bg-slate-100"
-                >
-                  Start building
-                  <ArrowRight className="h-4 w-4" />
-                </Link>
-                <Link
-                  to="/about"
-                  className="inline-flex h-11 items-center justify-center rounded-lg border border-white/25 px-5 text-sm font-semibold text-white transition-colors hover:bg-white/10"
-                >
-                  See how it works
-                </Link>
+              <div className="mt-8 flex flex-col justify-center gap-3 sm:flex-row">
+                <Button asChild size="lg">
+                  <Link to="/login" search={{ redirect: "/ai" }}>
+                    Start building
+                    <ArrowRight className="h-4 w-4" />
+                  </Link>
+                </Button>
+                <Button asChild size="lg" variant="outline">
+                  <a href="#how-it-works">See how it works</a>
+                </Button>
+              </div>
+            </div>
+
+            <div className="relative mx-auto mt-14 max-w-5xl">
+              <div className="absolute -inset-x-8 -bottom-8 top-12 -z-10 rounded-[2rem] bg-primary/10 blur-3xl" />
+              <div className="overflow-hidden rounded-2xl border border-border bg-card p-1.5 shadow-2xl shadow-primary/10">
+                <img
+                  src="/assets/kanyoai-builder-hero.webp"
+                  alt="The kanyoai builder showing a generated architecture website with its code"
+                  className="aspect-[16/9] w-full rounded-xl object-cover"
+                  width={1672}
+                  height={941}
+                />
               </div>
             </div>
           </div>
         </section>
 
-        <section className="border-b border-slate-200 bg-slate-50 px-4 py-8 sm:px-6 lg:px-8">
-          <div className="mx-auto grid max-w-7xl gap-3 sm:grid-cols-2 lg:grid-cols-4">
-            {stats.map((stat) => (
-              <div key={stat.label} className="rounded-lg border border-slate-200 bg-white p-5">
-                <p className="text-3xl font-semibold">{stat.value}</p>
-                <p className="mt-1 text-sm text-slate-500">{stat.label}</p>
-              </div>
-            ))}
-          </div>
-        </section>
-
-        <section className="px-4 py-20 sm:px-6 lg:px-8">
+        {/* How it works */}
+        <section
+          id="how-it-works"
+          className="scroll-mt-20 border-t border-border bg-card px-4 py-20 sm:px-6"
+        >
           <div className="mx-auto max-w-7xl">
-            <div className="max-w-2xl">
-              <p className="text-sm font-semibold uppercase tracking-wide text-slate-500">
-                Workflow
-              </p>
-              <h2 className="mt-3 text-3xl font-semibold tracking-tight sm:text-4xl">
-                From client brief to export-ready website
-              </h2>
-            </div>
-
-            <div className="mt-10 grid gap-5 lg:grid-cols-3">
-              {workflow.map(({ Icon, title, body }, index) => (
-                <article
+            <SectionHeading
+              eyebrow="How it works"
+              title="From brief to export-ready site in three steps"
+            />
+            <ol className="mt-12 grid gap-6 md:grid-cols-3">
+              {steps.map(({ Icon, title, body }, index) => (
+                <li
                   key={title}
-                  className="rounded-lg border border-slate-200 bg-white p-6 shadow-sm"
+                  className="relative rounded-xl border border-border bg-background p-6"
                 >
-                  <div className="flex items-center justify-between gap-4">
-                    <div className="flex h-11 w-11 items-center justify-center rounded-lg bg-slate-950 text-white">
+                  <div className="flex items-center gap-3">
+                    <span className="flex h-10 w-10 items-center justify-center rounded-lg bg-primary text-primary-foreground">
                       <Icon className="h-5 w-5" />
-                    </div>
-                    <span className="font-mono text-sm text-slate-400">0{index + 1}</span>
+                    </span>
+                    <span className="text-sm font-medium text-muted-foreground">
+                      Step {index + 1}
+                    </span>
                   </div>
-                  <h3 className="mt-6 font-semibold">{title}</h3>
-                  <p className="mt-2 text-sm leading-6 text-slate-600">{body}</p>
-                </article>
+                  <h3 className="mt-5 text-lg font-semibold">{title}</h3>
+                  <p className="mt-2 text-sm leading-6 text-muted-foreground">{body}</p>
+                </li>
+              ))}
+            </ol>
+          </div>
+        </section>
+
+        {/* Features */}
+        <section className="border-t border-border px-4 py-20 sm:px-6">
+          <div className="mx-auto max-w-7xl">
+            <SectionHeading
+              eyebrow="Features"
+              title="Everything you need to deliver client sites faster"
+            />
+            <div className="mt-12 grid gap-x-8 gap-y-10 sm:grid-cols-2 lg:grid-cols-3">
+              {features.map(({ Icon, title, body }) => (
+                <div key={title} className="flex gap-4">
+                  <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-lg bg-primary/10 text-primary">
+                    <Icon className="h-5 w-5" />
+                  </span>
+                  <div>
+                    <h3 className="font-semibold">{title}</h3>
+                    <p className="mt-1.5 text-sm leading-6 text-muted-foreground">{body}</p>
+                  </div>
+                </div>
               ))}
             </div>
           </div>
         </section>
 
-        <section className="border-y border-slate-200 bg-slate-50 px-4 py-20 sm:px-6 lg:px-8">
-          <div className="mx-auto grid max-w-7xl gap-10 lg:grid-cols-[0.9fr_1.1fr] lg:items-center">
+        {/* Workspace */}
+        <section className="border-t border-border bg-card px-4 py-20 sm:px-6">
+          <div className="mx-auto grid max-w-7xl items-center gap-12 lg:grid-cols-2">
             <div>
-              <p className="text-sm font-semibold uppercase tracking-wide text-slate-500">
-                Workspace
+              <SectionHeading
+                align="left"
+                eyebrow="Your workspace"
+                title="Every project, image, and setting in one place"
+              />
+              <p className="mt-4 max-w-xl leading-7 text-muted-foreground">
+                Generated sites save to your dashboard automatically. Reopen any project to keep
+                editing, preview it in a new tab, or download it again.
               </p>
-              <h2 className="mt-3 text-3xl font-semibold tracking-tight sm:text-4xl">
-                Dashboard, projects, and image library redesigned for speed
-              </h2>
-              <p className="mt-4 text-slate-600">
-                The dashboard keeps project and image loading separate, renders large libraries
-                lazily, and uses simple tab navigation so Projects and Images open without locking
-                the page.
-              </p>
-              <ul className="mt-6 space-y-3">
-                {checklist.map((item) => (
-                  <li key={item} className="flex items-start gap-3 text-sm text-slate-700">
-                    <span className="mt-0.5 flex h-5 w-5 shrink-0 items-center justify-center rounded-full bg-emerald-100 text-emerald-700">
+              <ul className="mt-8 space-y-3">
+                {included.map((item) => (
+                  <li key={item} className="flex items-start gap-3 text-sm">
+                    <span className="mt-0.5 flex h-5 w-5 shrink-0 items-center justify-center rounded-full bg-primary/10 text-primary">
                       <Check className="h-3.5 w-3.5" />
                     </span>
                     {item}
@@ -212,11 +222,11 @@ function Index() {
                 ))}
               </ul>
             </div>
-            <div className="overflow-hidden rounded-lg border border-slate-200 bg-white shadow-xl shadow-slate-200/80">
+            <div className="overflow-hidden rounded-2xl border border-border bg-background p-1.5 shadow-xl shadow-foreground/5">
               <img
                 src="/kanyoai-dashboard-preview.png"
-                alt="kanyoai dashboard preview"
-                className="h-full w-full object-cover"
+                alt="kanyoai dashboard with recent projects and the image library"
+                className="w-full rounded-xl"
                 loading="lazy"
                 decoding="async"
               />
@@ -224,60 +234,49 @@ function Index() {
           </div>
         </section>
 
-        <section className="px-4 py-20 sm:px-6 lg:px-8">
-          <div className="mx-auto max-w-7xl">
-            <div className="max-w-2xl">
-              <p className="text-sm font-semibold uppercase tracking-wide text-slate-500">
-                Features
-              </p>
-              <h2 className="mt-3 text-3xl font-semibold tracking-tight sm:text-4xl">
-                Everything needed for fast client delivery
-              </h2>
-            </div>
-
-            <div className="mt-10 grid gap-5 sm:grid-cols-2 lg:grid-cols-3">
-              {features.map(({ Icon, title, body }) => (
-                <article
-                  key={title}
-                  className="rounded-lg border border-slate-200 bg-white p-6 shadow-sm"
-                >
-                  <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-slate-100 text-slate-800">
-                    <Icon className="h-5 w-5" />
-                  </div>
-                  <h3 className="mt-5 font-semibold">{title}</h3>
-                  <p className="mt-2 text-sm leading-6 text-slate-600">{body}</p>
-                </article>
-              ))}
-            </div>
-          </div>
-        </section>
-
-        <section className="bg-slate-950 px-4 py-16 text-white sm:px-6 lg:px-8">
-          <div className="mx-auto flex max-w-7xl flex-col gap-6 lg:flex-row lg:items-center lg:justify-between">
-            <div>
-              <p className="text-sm font-semibold uppercase tracking-wide text-slate-400">
-                Ready to build
-              </p>
-              <h2 className="mt-3 text-3xl font-semibold tracking-tight">
-                Create your next client site today
-              </h2>
-              <p className="mt-3 max-w-2xl text-slate-300">
-                Sign in, describe the project, generate the site, then refine it from the dashboard.
-              </p>
-            </div>
-            <Link
-              to="/login"
-              search={{ redirect: "/ai" }}
-              className="inline-flex h-11 shrink-0 items-center justify-center gap-2 rounded-lg bg-white px-5 text-sm font-semibold text-slate-950 transition-colors hover:bg-slate-100"
+        {/* CTA */}
+        <section className="px-4 py-20 sm:px-6">
+          <div className="mx-auto max-w-5xl overflow-hidden rounded-3xl bg-primary px-6 py-14 text-center text-primary-foreground sm:px-12">
+            <h2 className="text-balance font-display text-3xl font-semibold sm:text-4xl">
+              Build your next client site today
+            </h2>
+            <p className="mx-auto mt-4 max-w-xl text-primary-foreground/80">
+              Create an account, write a brief, and have a working site to show your client in
+              minutes.
+            </p>
+            <Button
+              asChild
+              size="lg"
+              variant="secondary"
+              className="mt-8 bg-background text-foreground hover:bg-background/90"
             >
-              Get started
-              <Zap className="h-4 w-4" />
-            </Link>
+              <Link to="/login" search={{ redirect: "/ai" }}>
+                Get started
+                <ArrowRight className="h-4 w-4" />
+              </Link>
+            </Button>
           </div>
         </section>
       </main>
 
       <SiteFooter />
+    </div>
+  );
+}
+
+function SectionHeading({
+  eyebrow,
+  title,
+  align = "center",
+}: {
+  eyebrow: string;
+  title: string;
+  align?: "center" | "left";
+}) {
+  return (
+    <div className={align === "center" ? "mx-auto max-w-2xl text-center" : "max-w-xl"}>
+      <p className="text-sm font-semibold text-primary">{eyebrow}</p>
+      <h2 className="mt-3 text-balance font-display text-3xl font-semibold sm:text-4xl">{title}</h2>
     </div>
   );
 }

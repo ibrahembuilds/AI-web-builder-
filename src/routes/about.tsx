@@ -127,7 +127,7 @@ function AboutPage() {
             className="relative mx-auto max-w-3xl text-center"
           >
             <motion.div variants={fadeUp} className="mb-6 flex justify-center">
-              <span className="inline-flex items-center gap-2 rounded-full border border-violet-500/30 bg-violet-500/10 px-4 py-1.5 text-xs font-semibold text-violet-300">
+              <span className="inline-flex items-center gap-2 rounded-full border border-blue-400/30 bg-blue-400/10 px-4 py-1.5 text-xs font-semibold text-blue-300">
                 <Sparkles className="h-3 w-3" />
                 About kanyoai
               </span>
@@ -139,9 +139,7 @@ function AboutPage() {
             >
               Built so agencies can
               <br />
-              <span className="bg-gradient-to-r from-violet-400 via-blue-400 to-cyan-400 bg-clip-text text-transparent">
-                move faster than ever
-              </span>
+              <span className="text-blue-400">move faster than ever</span>
             </motion.h1>
 
             <motion.p
@@ -205,7 +203,7 @@ function AboutPage() {
                     variants={fadeUp}
                     className="flex items-start gap-3 py-2 text-sm text-muted-foreground"
                   >
-                    <Check className="mt-0.5 h-4 w-4 shrink-0 text-violet-500" />
+                    <Check className="mt-0.5 h-4 w-4 shrink-0 text-primary" />
                     {item}
                   </motion.div>
                 ))}
@@ -245,7 +243,7 @@ function AboutPage() {
                   variants={fadeUp}
                   className="rounded-xl border border-border bg-card p-5"
                 >
-                  <div className="mb-3 flex h-10 w-10 items-center justify-center rounded-lg bg-violet-500/10 text-violet-600">
+                  <div className="mb-3 flex h-10 w-10 items-center justify-center rounded-lg bg-primary/10 text-primary">
                     <Icon className="h-4.5 w-4.5" />
                   </div>
                   <h3 className="mb-1 text-sm font-semibold">{label}</h3>
@@ -292,7 +290,7 @@ function AboutPage() {
                   className="flex items-start gap-4 rounded-xl border border-border bg-card p-5"
                 >
                   <div
-                    className={`flex h-9 w-9 shrink-0 items-center justify-center rounded-lg text-xs font-bold ${i === 0 ? "bg-violet-600 text-white" : "bg-muted text-muted-foreground"}`}
+                    className={`flex h-9 w-9 shrink-0 items-center justify-center rounded-lg text-xs font-bold ${i === 0 ? "bg-primary text-primary-foreground" : "bg-muted text-muted-foreground"}`}
                   >
                     {i + 1}
                   </div>
@@ -369,7 +367,7 @@ function AboutPage() {
         <section className="relative overflow-hidden bg-slate-950 px-4 py-24 text-white sm:px-6">
           <div
             aria-hidden
-            className="pointer-events-none absolute -left-32 top-0 h-[440px] w-[440px] rounded-full bg-violet-600/18 blur-[130px]"
+            className="pointer-events-none absolute -left-32 top-0 h-[440px] w-[440px] rounded-full bg-blue-600/18 blur-[130px]"
           />
           <div
             aria-hidden
@@ -384,7 +382,7 @@ function AboutPage() {
             className="relative mx-auto max-w-xl text-center"
           >
             <motion.div variants={fadeUp} className="mb-5 flex justify-center">
-              <span className="inline-flex items-center gap-2 rounded-full border border-violet-500/30 bg-violet-500/10 px-4 py-1.5 text-xs font-semibold text-violet-300">
+              <span className="inline-flex items-center gap-2 rounded-full border border-blue-400/30 bg-blue-400/10 px-4 py-1.5 text-xs font-semibold text-blue-300">
                 <Zap className="h-3 w-3" />
                 Free to start
               </span>
@@ -405,7 +403,7 @@ function AboutPage() {
               <Link
                 to="/login"
                 search={{ redirect: "/ai" }}
-                className="group inline-flex h-13 items-center gap-2.5 rounded-xl bg-gradient-to-r from-violet-600 to-blue-600 px-8 text-sm font-bold text-white shadow-lg shadow-violet-500/25 transition-all hover:scale-[1.03] hover:shadow-violet-500/40"
+                className="group inline-flex h-13 items-center gap-2.5 rounded-xl bg-primary hover:bg-primary/90 px-8 text-sm font-bold text-white shadow-lg shadow-primary/25 transition-colors"
               >
                 <Sparkles className="h-4 w-4" />
                 Get started free

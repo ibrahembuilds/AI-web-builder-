@@ -6,11 +6,9 @@ import {
   useRouter,
   useRouterState,
   HeadContent,
-  Scripts,
 } from "@tanstack/react-router";
 import { useEffect, useRef, useState } from "react";
 
-import appCss from "../styles.css?url";
 import { Toaster } from "@/components/ui/sonner";
 
 function RouteProgressBar() {
@@ -37,7 +35,7 @@ function RouteProgressBar() {
   return (
     <div className="pointer-events-none fixed left-0 top-0 z-[9999] h-[2px] w-full overflow-hidden">
       <div
-        className="h-full bg-gradient-to-r from-violet-500 via-blue-400 to-cyan-400"
+        className="h-full bg-primary"
         style={{
           width: `${width}%`,
           opacity,
@@ -123,7 +121,6 @@ export const Route = createRootRouteWithContext<{ queryClient: QueryClient }>()(
       { name: "twitter:card", content: "summary_large_image" },
     ],
     links: [
-      { rel: "stylesheet", href: appCss },
       { rel: "icon", type: "image/svg+xml", href: "/favicon.svg" },
       { rel: "apple-touch-icon", href: "/assets/kanyoai-logo.svg" },
       { rel: "preconnect", href: "https://fonts.googleapis.com" },
@@ -134,30 +131,17 @@ export const Route = createRootRouteWithContext<{ queryClient: QueryClient }>()(
       },
     ],
   }),
-  shellComponent: RootShell,
   component: RootComponent,
   notFoundComponent: NotFoundComponent,
   errorComponent: ErrorComponent,
 });
 
-function RootShell({ children }: { children: React.ReactNode }) {
-  return (
-    <html lang="en">
-      <head>
-        <HeadContent />
-      </head>
-      <body>
-        {children}
-        <Scripts />
-      </body>
-    </html>
-  );
-}
-
 function RootComponent() {
   const { queryClient } = Route.useRouteContext();
   return (
     <QueryClientProvider client={queryClient}>
+      {/* SPA mode: React 19 hoists <title>/<meta>/<link> from here into document.head. */}
+      <HeadContent />
       <RouteProgressBar />
       <Outlet />
       <Toaster />

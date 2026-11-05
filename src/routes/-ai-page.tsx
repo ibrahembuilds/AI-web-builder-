@@ -1,8 +1,10 @@
 import { useNavigate } from "@tanstack/react-router";
 import {
   Bot,
+  Check,
   CheckCircle2,
   ChevronLeft,
+  ChevronRight,
   Code2,
   Copy,
   Download,
@@ -29,10 +31,12 @@ import { toast } from "sonner";
 import { SiteFooter, SiteHeader } from "@/components/site-header";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import { Switch } from "@/components/ui/switch";
 import { Textarea } from "@/components/ui/textarea";
 import { useAuth } from "@/hooks/use-auth";
 import { isSupabaseConfigured, supabase } from "@/integrations/supabase/client";
 import type { Json } from "@/integrations/supabase/types";
+import { openSandboxedPreview, PREVIEW_SANDBOX, PREVIEW_STORAGE_SHIM } from "@/lib/preview";
 
 // ─── types ────────────────────────────────────────────────────────────────────
 
@@ -271,6 +275,24 @@ const STEPS = [
   { num: 1, label: "Describe" },
   { num: 2, label: "Details" },
   { num: 3, label: "Launch" },
+];
+
+const EXAMPLE_PROMPTS: Array<{ label: string; kind: SiteKind; text: string }> = [
+  {
+    label: "Photographer portfolio",
+    kind: "portfolio",
+    text: "A portfolio for an architectural photographer in Chicago. Minimal, blue and white. Hero, project gallery, services, and a contact form.",
+  },
+  {
+    label: "SaaS landing page",
+    kind: "saas",
+    text: "Landing page for a project management tool for small agencies. Dark tech feel, feature grid, pricing table, and a sign-up CTA.",
+  },
+  {
+    label: "Skincare brand",
+    kind: "commerce",
+    text: "Homepage for a luxury skincare brand. Dark marble look with gold accents, hero with tagline, product showcase, and testimonials.",
+  },
 ];
 
 const GEN_STEPS = [
@@ -1000,12 +1022,9 @@ export default function AIPage() {
   }
 
   function openInNewTab() {
-    const html = composePreview(files);
-    const blob = new Blob([html], { type: "text/html" });
-    const url = URL.createObjectURL(blob);
-    const win = window.open(url, "_blank");
-    if (!win) toast.error("Pop-up blocked — allow pop-ups and try again.");
-    setTimeout(() => URL.revokeObjectURL(url), 10000);
+    if (!openSandboxedPreview(composePreview(files), title)) {
+      toast.error("Pop-up blocked — allow pop-ups and try again.");
+    }
   }
 
   function backToBuild() {
@@ -1106,14 +1125,16 @@ export default function AIPage() {
                       type="button"
                       onClick={() => setView(v)}
                       className={[
-                        "inline-flex items-center gap-1.5 rounded-md px-2.5 py-1 text-xs font-medium capitalize transition-colors",
+                        "inline-flex items-center gap-1.5 rounded-md px-2.5 py-1 text-xs font-medium transition-colors",
                         view === v
-                          ? "bg-primary text-white shadow-sm"
+                          ? "bg-primary text-primary-foreground shadow-sm"
                           : "text-muted-foreground hover:text-foreground",
                       ].join(" ")}
                     >
                       <Icon className="h-3.5 w-3.5" />
-                      <span className="hidden sm:inline">{v}</span>
+                      <span className="hidden sm:inline">
+                        {v === "preview" ? "Preview" : v.toUpperCase()}
+                      </span>
                     </button>
                   );
                 })}
@@ -1133,11 +1154,13 @@ export default function AIPage() {
                           key={id}
                           type="button"
                           title={label}
+                          aria-label={`${label} preview`}
+                          aria-pressed={device === id}
                           onClick={() => setDevice(id)}
                           className={[
                             "rounded-md p-1.5 transition-colors",
                             device === id
-                              ? "bg-primary text-white"
+                              ? "bg-primary text-primary-foreground"
                               : "text-muted-foreground hover:text-foreground",
                           ].join(" ")}
                         >
@@ -1183,7 +1206,7 @@ export default function AIPage() {
             </div>
 
             {/* Content */}
-            <div className="relative min-h-0 flex-1 bg-slate-100">
+            <div className="relative min-h-0 flex-1 bg-muted">
               {loadingProject && (
                 <div className="absolute inset-0 z-20 flex flex-col items-center justify-center gap-4 bg-background/95 backdrop-blur-sm">
                   <div className="relative flex h-16 w-16 items-center justify-center">
@@ -1213,7 +1236,7 @@ export default function AIPage() {
                 <iframe
                   title="preview"
                   srcDoc={previewSrcDoc}
-                  sandbox="allow-scripts allow-same-origin"
+                  sandbox={PREVIEW_SANDBOX}
                   className="absolute inset-0 h-full w-full border-0 bg-white"
                 />
               )}
@@ -1240,7 +1263,7 @@ export default function AIPage() {
                     <iframe
                       title="preview"
                       srcDoc={previewSrcDoc}
-                      sandbox="allow-scripts allow-same-origin"
+                      sandbox={PREVIEW_SANDBOX}
                       className="w-full border-0 bg-white"
                       style={{ height: device === "tablet" ? 900 : 844 }}
                     />
@@ -1331,7 +1354,7 @@ export default function AIPage() {
                     className={[
                       "max-w-[85%] rounded-2xl px-3 py-2 text-sm leading-relaxed",
                       msg.role === "user"
-                        ? "rounded-br-sm bg-primary text-white"
+                        ? "rounded-br-sm bg-primary text-primary-foreground"
                         : "rounded-bl-sm border border-border bg-background text-foreground",
                     ].join(" ")}
                   >
@@ -1408,7 +1431,7 @@ export default function AIPage() {
     <div className="flex min-h-screen flex-col bg-background text-foreground">
       <SiteHeader />
 
-      <main className="mx-auto w-full max-w-2xl flex-1 px-4 py-10 sm:px-6">
+      <main className="mx-auto w-full max-w-2xl flex-1 px-4 py-8 sm:px-6 sm:py-12">
         {/* Back to workspace banner */}
         {hasCode && (
           <div className="mb-5 flex items-center gap-3 rounded-xl border border-border bg-card p-3 shadow-sm">
@@ -1419,6 +1442,15 @@ export default function AIPage() {
             </Button>
           </div>
         )}
+
+        <div className="mb-6">
+          <h1 className="font-display text-2xl font-semibold sm:text-3xl">
+            {loadedProjectId ? "Edit website brief" : "Create a new website"}
+          </h1>
+          <p className="mt-1 text-sm text-muted-foreground">
+            Three short steps. Only the description is required.
+          </p>
+        </div>
 
         {/* Form card */}
         <div className="overflow-hidden rounded-2xl border border-border bg-card shadow-sm">
@@ -1432,29 +1464,27 @@ export default function AIPage() {
                   key={s.num}
                   type="button"
                   onClick={() => setStep(i)}
+                  aria-current={active ? "step" : undefined}
                   className={[
-                    "flex flex-1 items-center justify-center gap-2.5 py-4 text-sm font-medium transition-colors",
-                    "border-r border-border last:border-r-0",
+                    "relative flex flex-1 items-center justify-center gap-2 py-3.5 text-xs font-medium transition-colors sm:gap-2.5 sm:text-sm",
                     active
-                      ? "bg-primary/5 text-primary"
-                      : done
-                        ? "text-muted-foreground hover:text-foreground"
-                        : "text-muted-foreground/50",
+                      ? "text-foreground after:absolute after:inset-x-0 after:bottom-0 after:h-0.5 after:bg-primary"
+                      : "text-muted-foreground hover:text-foreground",
                   ].join(" ")}
                 >
                   <span
                     className={[
                       "flex h-6 w-6 items-center justify-center rounded-full text-xs font-semibold",
                       active
-                        ? "bg-primary text-white"
+                        ? "bg-primary text-primary-foreground"
                         : done
-                          ? "bg-green-500 text-white"
-                          : "bg-border text-muted-foreground",
+                          ? "bg-primary/10 text-primary"
+                          : "bg-muted text-muted-foreground",
                     ].join(" ")}
                   >
-                    {done ? "✓" : s.num}
+                    {done ? <Check className="h-3.5 w-3.5" /> : s.num}
                   </span>
-                  <span className="hidden sm:inline">{s.label}</span>
+                  {s.label}
                 </button>
               );
             })}
@@ -1470,17 +1500,36 @@ export default function AIPage() {
                 </p>
               </div>
 
-              <Textarea
-                value={brief.intent}
-                onChange={(e) => setBrief((b) => ({ ...b, intent: e.target.value }))}
-                placeholder={`Try something like:\n• "A portfolio for an architectural photographer in Chicago. Minimalist, blue-and-white — hero, projects gallery, services, contact form."\n• "SaaS landing page for a project management tool. Dark tech feel, feature grid, pricing table, CTA to sign up."\n• "Luxury skincare brand homepage. Dark marble aesthetic, gold accents, hero with tagline, product showcase, testimonials."`}
-                rows={6}
-                className="resize-none text-sm"
-                autoFocus
-              />
+              <div>
+                <Textarea
+                  value={brief.intent}
+                  onChange={(e) => setBrief((b) => ({ ...b, intent: e.target.value }))}
+                  placeholder="Who is the site for, what should it feel like, and which sections does it need?"
+                  rows={5}
+                  className="resize-none text-[15px] leading-6"
+                  aria-label="Describe your website"
+                  autoFocus
+                />
+                <div className="mt-3 flex flex-wrap items-center gap-2">
+                  <span className="text-xs text-muted-foreground">Try an example:</span>
+                  {EXAMPLE_PROMPTS.map((ex) => (
+                    <button
+                      key={ex.label}
+                      type="button"
+                      onClick={() => {
+                        setBrief((b) => ({ ...b, intent: ex.text }));
+                        setKind(ex.kind);
+                      }}
+                      className="rounded-full border border-dashed border-border px-3 py-1 text-xs text-muted-foreground transition-colors hover:border-primary/50 hover:bg-primary/5 hover:text-primary"
+                    >
+                      {ex.label}
+                    </button>
+                  ))}
+                </div>
+              </div>
 
               <div>
-                <p className="mb-3 text-sm font-medium text-muted-foreground">Site type</p>
+                <p className="mb-3 text-sm font-medium">Site type</p>
                 <div className="flex flex-wrap gap-2">
                   {SITE_KINDS.map((k) => (
                     <button
@@ -1490,7 +1539,7 @@ export default function AIPage() {
                       className={[
                         "rounded-full border px-4 py-1.5 text-sm font-medium transition-colors",
                         kind === k.id
-                          ? "border-primary bg-primary text-white"
+                          ? "border-primary bg-primary text-primary-foreground"
                           : "border-border hover:border-primary/50 hover:text-primary",
                       ].join(" ")}
                     >
@@ -1500,75 +1549,13 @@ export default function AIPage() {
                 </div>
               </div>
 
-              {/* Logo upload */}
-              <div>
-                <p className="mb-3 text-sm font-medium text-muted-foreground">
-                  Logo <span className="text-xs">(optional)</span>
-                </p>
-                {logoDataUrl ? (
-                  <div className="flex items-center gap-3">
-                    <div className="flex h-14 w-28 items-center justify-center overflow-hidden rounded-lg border border-border bg-muted/30 p-1.5">
-                      <img
-                        src={logoDataUrl}
-                        alt="Logo"
-                        className="max-h-full max-w-full object-contain"
-                      />
-                    </div>
-                    <div className="flex flex-col gap-1">
-                      <button
-                        type="button"
-                        onClick={() => logoInputRef.current?.click()}
-                        className="text-xs text-primary hover:underline"
-                      >
-                        Change
-                      </button>
-                      <button
-                        type="button"
-                        onClick={() => setLogoDataUrl(null)}
-                        className="text-xs text-muted-foreground hover:text-destructive"
-                      >
-                        Remove
-                      </button>
-                    </div>
-                  </div>
-                ) : (
-                  <button
-                    type="button"
-                    onClick={() => logoInputRef.current?.click()}
-                    className="flex w-full items-center justify-center gap-2 rounded-lg border border-dashed border-border py-4 text-sm text-muted-foreground transition-colors hover:border-primary/50 hover:text-foreground"
-                  >
-                    <ImagePlus className="h-4 w-4" />
-                    Upload logo (PNG, SVG, WEBP)
-                  </button>
-                )}
-                <div className="mt-3 grid gap-2 sm:grid-cols-[1fr_auto]">
-                  <Input
-                    value={logoPrompt}
-                    onChange={(e) => setLogoPrompt(e.target.value)}
-                    placeholder="Logo direction, e.g. clean blue K mark, no mascot"
-                    disabled={generatingLogo}
-                  />
-                  <Button
-                    type="button"
-                    variant="outline"
-                    onClick={() => void generateLogo()}
-                    disabled={generatingLogo || authLoading || !brief.identity.trim()}
-                    className="gap-2"
-                  >
-                    {generatingLogo ? (
-                      <Loader2 className="h-4 w-4 animate-spin" />
-                    ) : (
-                      <Sparkles className="h-4 w-4" />
-                    )}
-                    Generate logo
-                  </Button>
-                </div>
-              </div>
-
               <div>
                 <div className="mb-3 flex items-center justify-between">
-                  <p className="text-sm font-medium text-muted-foreground">
-                    Images <span className="text-xs">(optional — up to 4)</span>
+                  <p className="text-sm font-medium">
+                    Images{" "}
+                    <span className="font-normal text-muted-foreground">
+                      (optional, the first 4 are used)
+                    </span>
                   </p>
                   {media.length > 0 && (
                     <button
@@ -1582,53 +1569,31 @@ export default function AIPage() {
                 </div>
 
                 {/* AI Images toggle */}
-                <button
-                  type="button"
-                  onClick={() => setGenerateAiImages((v) => !v)}
-                  className={[
-                    "mb-3 flex w-full items-center gap-3 rounded-lg border px-4 py-3 text-sm transition-colors text-left",
-                    generateAiImages
-                      ? "border-primary/40 bg-primary/5 text-foreground"
-                      : "border-border text-muted-foreground hover:border-primary/30 hover:text-foreground",
-                  ].join(" ")}
+                <label
+                  htmlFor="ai-images"
+                  className="mb-3 flex cursor-pointer items-center gap-3 rounded-lg border border-border px-4 py-3 transition-colors has-[[data-state=checked]]:border-primary/40 has-[[data-state=checked]]:bg-primary/5"
                 >
-                  <span
-                    className={[
-                      "flex h-5 w-9 shrink-0 items-center rounded-full transition-all",
-                      generateAiImages ? "bg-primary" : "bg-muted-foreground/30",
-                    ].join(" ")}
-                  >
-                    <span
-                      className={[
-                        "h-4 w-4 rounded-full bg-white shadow transition-transform",
-                        generateAiImages ? "translate-x-4" : "translate-x-0.5",
-                      ].join(" ")}
-                    />
-                  </span>
                   <span className="flex-1">
-                    <span className="font-medium">Generate AI images</span>
-                    <span className="ml-1.5 text-xs opacity-70">
-                      using gpt-image-2 (1 image credit)
+                    <span className="block text-sm font-medium">Generate an AI hero image</span>
+                    <span className="block text-xs text-muted-foreground">
+                      Created with gpt-image-2 and saved to your image library
                     </span>
                   </span>
-                  {generateAiImages && (
-                    <span className="shrink-0 rounded-full bg-primary/15 px-2 py-0.5 text-[10px] font-semibold text-primary">
-                      ON
-                    </span>
-                  )}
-                </button>
+                  <Switch
+                    id="ai-images"
+                    checked={generateAiImages}
+                    onCheckedChange={setGenerateAiImages}
+                  />
+                </label>
                 {generateAiImages && (
-                  <div className="mb-3 space-y-2 rounded-lg border border-primary/10 bg-primary/5 p-3">
-                    <p className="text-xs text-muted-foreground">
-                      AI will create a custom high-quality hero image before building and save it to
-                      your image library.
-                    </p>
+                  <div className="mb-3">
                     <Textarea
                       value={imageDirection}
                       onChange={(e) => setImageDirection(e.target.value)}
-                      placeholder="Image direction, e.g. real studio workspace, no people, soft daylight, premium product closeups"
+                      placeholder="Image direction (optional), e.g. real studio workspace, soft daylight, no people"
                       rows={2}
-                      className="resize-none bg-background text-xs"
+                      className="resize-none text-sm"
+                      aria-label="Image direction"
                     />
                   </div>
                 )}
@@ -1718,6 +1683,76 @@ export default function AIPage() {
                     placeholder="e.g. Nora Vale, Studio Norte, Arca Design"
                   />
                 </div>
+                {/* Logo: lives next to the brand name because AI logo generation needs it. */}
+                <div>
+                  <label className="mb-1.5 block text-sm font-medium">
+                    Logo <span className="font-normal text-muted-foreground">(optional)</span>
+                  </label>
+                  <div className="flex flex-col gap-3 rounded-lg border border-border p-3 sm:flex-row sm:items-center">
+                    <div className="flex h-14 w-28 shrink-0 items-center justify-center overflow-hidden rounded-md border border-dashed border-border bg-muted/40 p-1.5">
+                      {logoDataUrl ? (
+                        <img
+                          src={logoDataUrl}
+                          alt="Logo preview"
+                          className="max-h-full max-w-full object-contain"
+                        />
+                      ) : (
+                        <ImagePlus className="h-5 w-5 text-muted-foreground" />
+                      )}
+                    </div>
+                    <div className="flex flex-1 flex-wrap items-center gap-2">
+                      <Button
+                        type="button"
+                        variant="outline"
+                        size="sm"
+                        onClick={() => logoInputRef.current?.click()}
+                      >
+                        {logoDataUrl ? "Replace" : "Upload logo"}
+                      </Button>
+                      {logoDataUrl && (
+                        <Button
+                          type="button"
+                          variant="ghost"
+                          size="sm"
+                          className="text-muted-foreground hover:text-destructive"
+                          onClick={() => setLogoDataUrl(null)}
+                        >
+                          Remove
+                        </Button>
+                      )}
+                      <span className="text-xs text-muted-foreground">PNG, SVG, or WEBP</span>
+                    </div>
+                  </div>
+                  <div className="mt-2 grid gap-2 sm:grid-cols-[1fr_auto]">
+                    <Input
+                      value={logoPrompt}
+                      onChange={(e) => setLogoPrompt(e.target.value)}
+                      placeholder="Or describe one to generate, e.g. clean blue K mark"
+                      disabled={generatingLogo}
+                      aria-label="Logo direction"
+                    />
+                    <Button
+                      type="button"
+                      variant="outline"
+                      onClick={() => void generateLogo()}
+                      disabled={generatingLogo || authLoading || !brief.identity.trim()}
+                      title={brief.identity.trim() ? undefined : "Add a name or brand first"}
+                    >
+                      {generatingLogo ? (
+                        <Loader2 className="h-4 w-4 animate-spin" />
+                      ) : (
+                        <Sparkles className="h-4 w-4" />
+                      )}
+                      {generatingLogo ? "Generating..." : "Generate logo"}
+                    </Button>
+                  </div>
+                  {!brief.identity.trim() && (
+                    <p className="mt-1.5 text-xs text-muted-foreground">
+                      Add a name or brand above to generate a logo.
+                    </p>
+                  )}
+                </div>
+
                 <div>
                   <label className="mb-1.5 block text-sm font-medium">
                     Tagline <span className="text-muted-foreground font-normal">(optional)</span>
@@ -1771,7 +1806,7 @@ export default function AIPage() {
                           className={[
                             "rounded-full border px-3.5 py-1.5 text-xs font-medium transition-colors",
                             active
-                              ? "border-primary bg-primary text-white"
+                              ? "border-primary bg-primary text-primary-foreground"
                               : "border-border hover:border-primary/50 hover:text-primary",
                             isHome ? "cursor-default opacity-70" : "",
                           ].join(" ")}
@@ -1785,41 +1820,22 @@ export default function AIPage() {
 
                 {/* Popup config */}
                 <div>
-                  <button
-                    type="button"
-                    onClick={() => setPopup((p) => ({ ...p, enabled: !p.enabled }))}
-                    className={[
-                      "flex w-full items-center gap-3 rounded-lg border px-4 py-3 text-sm transition-colors text-left",
-                      popup.enabled
-                        ? "border-primary/40 bg-primary/5 text-foreground"
-                        : "border-border text-muted-foreground hover:border-primary/30 hover:text-foreground",
-                    ].join(" ")}
+                  <label
+                    htmlFor="popup-enabled"
+                    className="flex cursor-pointer items-center gap-3 rounded-lg border border-border px-4 py-3 transition-colors has-[[data-state=checked]]:border-primary/40 has-[[data-state=checked]]:bg-primary/5"
                   >
-                    <span
-                      className={[
-                        "flex h-5 w-9 shrink-0 items-center rounded-full transition-all",
-                        popup.enabled ? "bg-primary" : "bg-muted-foreground/30",
-                      ].join(" ")}
-                    >
-                      <span
-                        className={[
-                          "h-4 w-4 rounded-full bg-white shadow transition-transform",
-                          popup.enabled ? "translate-x-4" : "translate-x-0.5",
-                        ].join(" ")}
-                      />
-                    </span>
                     <span className="flex-1">
-                      <span className="font-medium">Add a popup</span>
-                      <span className="ml-1.5 text-xs opacity-70">
-                        newsletter, contact, or announcement
+                      <span className="block text-sm font-medium">Add a pop-up</span>
+                      <span className="block text-xs text-muted-foreground">
+                        Newsletter, contact form, or announcement
                       </span>
                     </span>
-                    {popup.enabled && (
-                      <span className="shrink-0 rounded-full bg-primary/15 px-2 py-0.5 text-[10px] font-semibold text-primary">
-                        ON
-                      </span>
-                    )}
-                  </button>
+                    <Switch
+                      id="popup-enabled"
+                      checked={popup.enabled}
+                      onCheckedChange={(enabled) => setPopup((p) => ({ ...p, enabled }))}
+                    />
+                  </label>
 
                   {popup.enabled && (
                     <div className="mt-3 space-y-3 rounded-lg border border-border bg-muted/20 p-4">
@@ -1937,7 +1953,7 @@ export default function AIPage() {
                         className={[
                           "rounded-full border px-3.5 py-1.5 text-xs font-medium transition-colors",
                           brief.tone === t.id
-                            ? "border-primary bg-primary text-white"
+                            ? "border-primary bg-primary text-primary-foreground"
                             : "border-border hover:border-primary/50 hover:text-primary",
                         ].join(" ")}
                       >
@@ -2001,7 +2017,7 @@ export default function AIPage() {
                 </div>
               </div>
 
-              <div className="space-y-4 rounded-xl border border-border bg-muted/20 p-4">
+              <div className="space-y-4 rounded-xl border border-border p-4">
                 <div className="flex items-start justify-between gap-3">
                   <div>
                     <p className="flex items-center gap-2 text-sm font-medium">
@@ -2012,56 +2028,47 @@ export default function AIPage() {
                       Turn this on to force the generated site to use your exact palette.
                     </p>
                   </div>
-                  <button
-                    type="button"
-                    onClick={() =>
-                      setCustomColors((current) => ({ ...current, enabled: !current.enabled }))
+                  <Switch
+                    checked={customColors.enabled}
+                    onCheckedChange={(enabled) =>
+                      setCustomColors((current) => ({ ...current, enabled }))
                     }
-                    className={[
-                      "flex h-6 w-11 shrink-0 items-center rounded-full transition-all",
-                      customColors.enabled ? "bg-primary" : "bg-muted-foreground/30",
-                    ].join(" ")}
-                    aria-label="Toggle custom brand colors"
-                  >
-                    <span
-                      className={[
-                        "h-5 w-5 rounded-full bg-white shadow transition-transform",
-                        customColors.enabled ? "translate-x-5" : "translate-x-0.5",
-                      ].join(" ")}
-                    />
-                  </button>
+                    aria-label="Use custom brand colors"
+                  />
                 </div>
 
-                <div className="grid gap-3 sm:grid-cols-2">
-                  {(
-                    [
-                      ["primary", "Primary"],
-                      ["secondary", "Secondary / hero"],
-                      ["background", "Background"],
-                      ["surface", "Section surface"],
-                      ["text", "Text"],
-                    ] as Array<[keyof Omit<CustomColors, "enabled">, string]>
-                  ).map(([key, label]) => (
-                    <label key={key} className="space-y-1.5 text-xs font-medium">
-                      <span>{label}</span>
-                      <div className="flex items-center gap-2">
-                        <input
-                          type="color"
-                          value={colorInputValue(customColors[key])}
-                          onChange={(e) => updateCustomColor(key, e.target.value)}
-                          disabled={!customColors.enabled}
-                          className="h-9 w-11 shrink-0 cursor-pointer rounded-md border border-border bg-background p-1 disabled:cursor-not-allowed disabled:opacity-45"
-                        />
-                        <Input
-                          value={customColors[key]}
-                          onChange={(e) => updateCustomColor(key, e.target.value)}
-                          disabled={!customColors.enabled}
-                          className="h-9 font-mono text-xs uppercase"
-                        />
-                      </div>
-                    </label>
-                  ))}
-                </div>
+                {customColors.enabled && (
+                  <div className="grid gap-3 sm:grid-cols-2">
+                    {(
+                      [
+                        ["primary", "Primary"],
+                        ["secondary", "Secondary / hero"],
+                        ["background", "Background"],
+                        ["surface", "Section surface"],
+                        ["text", "Text"],
+                      ] as Array<[keyof Omit<CustomColors, "enabled">, string]>
+                    ).map(([key, label]) => (
+                      <label key={key} className="space-y-1.5 text-xs font-medium">
+                        <span>{label}</span>
+                        <div className="flex items-center gap-2">
+                          <input
+                            type="color"
+                            value={colorInputValue(customColors[key])}
+                            onChange={(e) => updateCustomColor(key, e.target.value)}
+                            disabled={!customColors.enabled}
+                            className="h-9 w-11 shrink-0 cursor-pointer rounded-md border border-border bg-background p-1 disabled:cursor-not-allowed disabled:opacity-45"
+                          />
+                          <Input
+                            value={customColors[key]}
+                            onChange={(e) => updateCustomColor(key, e.target.value)}
+                            disabled={!customColors.enabled}
+                            className="h-9 font-mono text-xs uppercase"
+                          />
+                        </div>
+                      </label>
+                    ))}
+                  </div>
+                )}
               </div>
 
               <div>
@@ -2135,19 +2142,25 @@ export default function AIPage() {
           )}
 
           {/* Footer nav */}
-          <div className="flex items-center justify-between border-t border-border px-6 py-3 sm:px-8">
-            <button
+          <div className="flex items-center justify-between border-t border-border bg-muted/30 px-6 py-3 sm:px-8">
+            <Button
               type="button"
+              variant="ghost"
               disabled={step === 0}
               onClick={() => setStep((s) => Math.max(0, s - 1))}
-              className="text-sm text-muted-foreground transition-colors hover:text-foreground disabled:pointer-events-none disabled:opacity-30"
+              className="invisible data-[show=true]:visible"
+              data-show={step > 0}
             >
+              <ChevronLeft className="h-4 w-4" />
               Back
-            </button>
-            {step < 2 && (
-              <Button type="button" onClick={goNext} size="sm">
-                Next
+            </Button>
+            {step < 2 ? (
+              <Button type="button" onClick={goNext}>
+                Continue
+                <ChevronRight className="h-4 w-4" />
               </Button>
+            ) : (
+              <span className="text-xs text-muted-foreground">Step 3 of 3</span>
             )}
           </div>
         </div>
@@ -2390,8 +2403,8 @@ function composePreview(files: SiteFiles) {
   html = html.replace(/<script[^>]+src=["']script\.js["'][^>]*>\s*<\/script>/gi, "");
   // Inject nav guard as the very first script in <head>
   html = /<head>/i.test(html)
-    ? html.replace(/<head>/i, `<head>\n${PREVIEW_NAV_GUARD}`)
-    : `${PREVIEW_NAV_GUARD}\n${html}`;
+    ? html.replace(/<head>/i, `<head>\n${PREVIEW_STORAGE_SHIM}\n${PREVIEW_NAV_GUARD}`)
+    : `${PREVIEW_STORAGE_SHIM}\n${PREVIEW_NAV_GUARD}\n${html}`;
   if (cssTag)
     html = /<\/head>/i.test(html)
       ? html.replace(/<\/head>/i, `${cssTag}\n</head>`)
